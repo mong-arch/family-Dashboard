@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>우리 가족 대시보드</title>
+  <meta name="description" content="엄마·아빠·아이가 함께 쓰는 우리 가족 대시보드">
+  <meta name="theme-color" content="#FFE3D3">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="가족 대시보드">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🏡</span>
+        <div>
+          <h1>우리 가족 대시보드</h1>
+          <p id="today-label" class="today-label"></p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="sync-badge" class="sync-badge" role="status" aria-live="polite">연결 중…</span>
+        <button id="mode-btn" class="mode-btn" type="button"></button>
+        <button id="settings-btn" class="icon-btn" type="button" aria-label="설정">⚙️</button>
+      </div>
+    </div>
+    <nav class="section-nav" aria-label="바로가기">
+      <a href="#sec-schedule">📅 스케줄</a>
+      <a href="#sec-study">📚 공부·별</a>
+      <a href="#sec-shop">🎁 보상</a>
+      <a href="#sec-dday">🎂 D-Day</a>
+      <a href="#sec-meal">🍚 저녁·주말</a>
+      <a href="#sec-mail">💌 우체통</a>
+      <a href="#sec-music">🎵 음악</a>
+    </nav>
+  </header>
+
+  <main id="main" class="layout">
+    <section id="sec-hero" class="card hero" aria-labelledby="hero-title"></section>
+
+    <section id="sec-schedule" class="card span-2 tint-sky" aria-labelledby="schedule-title"></section>
+
+    <section id="sec-study" class="card tint-mint" aria-labelledby="study-title"></section>
+
+    <section id="sec-stars" class="card tint-lemon" aria-labelledby="stars-title"></section>
+
+    <section id="sec-shop" class="card tint-pink" aria-labelledby="shop-title"></section>
+
+    <section id="sec-dday" class="card tint-lavender" aria-labelledby="dday-title"></section>
+
+    <section id="sec-meal" class="card tint-peach" aria-labelledby="meal-title"></section>
+
+    <section id="sec-weekend" class="card tint-mint" aria-labelledby="weekend-title"></section>
+
+    <section id="sec-status" class="card tint-sky" aria-labelledby="status-title"></section>
+
+    <section id="sec-mail" class="card tint-lemon" aria-labelledby="mail-title"></section>
+
+    <section id="sec-music" class="card tint-lavender" aria-labelledby="music-title"></section>
+  </main>
+
+  <footer class="footer">
+    <p>우리 가족 대시보드 · 모든 기기에서 실시간으로 함께 써요</p>
+  </footer>
+
+  <dialog id="form-dialog" class="dialog" aria-labelledby="form-dialog-title">
+    <form method="dialog" id="form-dialog-form">
+      <h2 id="form-dialog-title"></h2>
+      <div id="form-dialog-fields" class="form-fields"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" data-dialog-cancel>취소</button>
+        <button type="button" class="btn danger" id="form-dialog-delete" hidden>삭제</button>
+        <button type="submit" class="btn primary" id="form-dialog-submit">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

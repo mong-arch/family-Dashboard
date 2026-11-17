@@ -1,0 +1,12 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "families": {
+      "$familyId": {
+        ".read": "auth != null && $familyId.length >= 8",
+        ".write": "auth != null && $familyId.length >= 8"
+      }
+    }
+  }
+}
