@@ -1065,6 +1065,81 @@ function prepOnceForm(o = {}, day) {
   });
 }
 
+// ---------------- 사야 할 것 ----------------
+const SHOP_CATS = [
+  { value: "마트", emoji: "🛒" }, { value: "문구", emoji: "✏️" }, { value: "약국", emoji: "💊" },
+  { value: "온라인", emoji: "📦" }, { value: "생활용품", emoji: "🧻" }, { value: "기타", emoji: "📌" }
+];
+const catEmoji = (c) => SHOP_CATS.find((x) => x.value === c)?.emoji || "📌";
+const shopDraft = { text: "" };
+function renderShopping() {
+  const items = list(data.shopping);
+  const todo = items.filter((x) => !x.done).sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || (a.ts || 0) - (b.ts || 0));
+  const done = items.filter((x) => x.done).sort((a, b) => (b.doneTs || 0) - (a.doneTs || 0));
+  const groups = SHOP_CATS.map((c) => ({ ...c, items: todo.filter((x) => (x.cat || "마트") === c.value) })).filter((g) => g.items.length);
+  const row = (x) => {
+    const r = ROLES[x.by] || ROLES.tablet;
+    return `<li class="check-row ${x.done ? "done" : ""}">
+      <button type="button" class="check-btn" data-action="shop-toggle" data-id="${esc(x.id)}" aria-pressed="${!!x.done}">
+        <span class="check-box" aria-hidden="true">${x.done ? "✓" : ""}</span>
+        <span class="check-label">${x.urgent && !x.done ? "🔥 " : ""}${esc(x.title)}${x.qty ? ` <small class="shop-qty">${esc(x.qty)}</small>` : ""}</span>
+        <span class="shop-by" title="${esc(r.label)}">${x.done ? `${(ROLES[x.doneBy] || r).emoji} 샀어요` : `${r.emoji}`}</span>
+      </button>
+      <button type="button" class="mini-btn" data-action="shop-edit" data-id="${esc(x.id)}" aria-label="${esc(x.title)} 수정">✏️</button>
+    </li>`;
+  };
+  paint("sec-shopping", `
+    <div class="card-head">
+      <h2 id="shopping-title">🛍️ 사야 할 것</h2>
+      <span class="pill">${todo.length}개</span>
+    </div>
+    <div class="music-search">
+      <label for="shop-text" class="visually-hidden">사야 할 것</label>
+      <input id="shop-text" type="text" value="${esc(shopDraft.text)}" placeholder="예: 우유 2개, 색종이, 아이 양말" enterkeyhint="done">
+      ${speechSupported() ? `<button type="button" class="btn mic" data-action="mic-shop" aria-label="말로 추가">🎤</button>` : ""}
+      <button type="button" class="btn primary" data-action="shop-add">추가</button>
+    </div>
+    ${groups.map((g) => `<h3 class="sub-title">${g.emoji} ${g.value}</h3><ul class="check-list">${g.items.map(row).join("")}</ul>`).join("") || `<p class="empty">살 게 없어요 👍 필요한 게 생기면 적어 주세요</p>`}
+    ${done.length ? `<details class="passed">
+      <summary>✅ 산 것 ${done.length}개</summary>
+      <ul class="check-list">${done.slice(0, 20).map(row).join("")}</ul>
+      <button type="button" class="link-btn" data-action="shop-clear">산 것 모두 지우기</button>
+    </details>` : ""}
+    ${ttsSupported() && todo.length ? `<button type="button" class="btn small" data-action="shop-speak">🔊 목록 읽어주기</button>` : ""}`);
+}
+function addShop(text, extra = {}) {
+  const t = String(text || "").trim();
+  if (!t) { toast("무엇을 사야 하는지 적어 주세요"); return; }
+  const patch = {};
+  t.split(/[,，]/).map((x) => x.trim()).filter(Boolean).forEach((title) => {
+    patch[`shopping/${newId()}`] = { title, cat: extra.cat || "마트", by: myRole(), ts: Date.now(), done: false, ...extra };
+  });
+  store.update("", patch);
+  shopDraft.text = "";
+  const el = $("#shop-text");
+  const hadFocus = el && document.activeElement === el;
+  if (el) { el.value = ""; el.blur(); }
+  pending.delete("sec-shopping");
+  setTimeout(() => { renderShopping(); if (hadFocus) $("#shop-text")?.focus(); }, 60);
+  toast("사야 할 것에 넣었어요 🛍️");
+}
+function shopForm(x = {}) {
+  openForm({
+    title: x.id ? "사야 할 것 수정" : "사야 할 것 추가",
+    fields: [
+      { name: "title", label: "물건", type: "text", value: x.title ?? shopDraft.text, required: true },
+      { name: "qty", label: "수량·메모", type: "text", value: x.qty, placeholder: "예: 2개, 1L, 흰색", half: true },
+      { name: "cat", label: "어디서", type: "select", value: x.cat || "마트", options: SHOP_CATS.map((c) => ({ value: c.value, label: `${c.emoji} ${c.value}` })), half: true },
+      { name: "urgent", label: "🔥 급해요 (맨 위로)", type: "checkbox", value: !!x.urgent }
+    ],
+    onSubmit: (v) => {
+      if (x.id) store.update(`shopping/${x.id}`, v);
+      else addShop(v.title, { qty: v.qty, cat: v.cat, urgent: v.urgent });
+    },
+    onDelete: x.id ? () => store.remove(`shopping/${x.id}`) : null
+  });
+}
+
 // ---------------- 피아노 연습곡 ----------------
 const activePieces = () => list(data.piano).filter((x) => x.status !== "passed").sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
 const pieceTarget = (x) => Math.max(1, Number(x.target) || 5);
@@ -1168,6 +1243,7 @@ function renderAll() {
   renderWeekend();
   renderStatus();
   renderMail();
+  renderShopping();
   renderMusic();
 }
 
@@ -1369,6 +1445,7 @@ const CARDS = [
   { id: "sec-weekend", label: "🧺 주말 계획" },
   { id: "sec-status", label: "🙋 엄마·아빠 상태" },
   { id: "sec-mail", label: "💌 가족 우체통" },
+  { id: "sec-shopping", label: "🛍️ 사야 할 것" },
   { id: "sec-music", label: "🎵 음악 듣기" },
   { id: "sec-schedule", label: "📅 학원·방과후 스케줄" }
 ];
@@ -1503,8 +1580,8 @@ function micInto(target, btn) {
   btn.textContent = "👂 듣는 중…";
   stopListening = listen({
     onResult: (text, final) => {
-      drafts[target] = text;
-      const el = target === "mail" ? $("#mail-text") : $("#music-q");
+      if (target === "shop") shopDraft.text = text; else drafts[target] = text;
+      const el = target === "mail" ? $("#mail-text") : target === "shop" ? $("#shop-text") : $("#music-q");
       if (el) el.value = text;
       if (final && target === "music") renderMusic();
     },
@@ -1513,6 +1590,7 @@ function micInto(target, btn) {
       if (err) toast(err === "not-allowed" ? "마이크 권한을 허용해 주세요" : "잘 못 들었어요. 다시 해 볼까요?");
       renderMail();
       renderMusic();
+      renderShopping();
     }
   });
 }
@@ -1585,6 +1663,25 @@ const actions = {
   "wx-refresh": () => { toast("날씨를 새로 불러와요"); loadWeather(true); },
   "wx-place": () => placeForm(),
   "edit-greeting": () => greetingForm(),
+  "shop-add": () => addShop($("#shop-text")?.value),
+  "shop-edit": (el) => shopForm({ id: el.dataset.id, ...data.shopping?.[el.dataset.id] }),
+  "shop-toggle": (el) => {
+    const x = data.shopping?.[el.dataset.id];
+    if (!x) return;
+    store.update(`shopping/${el.dataset.id}`, x.done ? { done: false, doneBy: null, doneTs: null } : { done: true, doneBy: myRole(), doneTs: Date.now() });
+    if (!x.done) toast(`✅ ${x.title} 샀어요`);
+  },
+  "shop-clear": () => {
+    const patch = {};
+    list(data.shopping).filter((x) => x.done).forEach((x) => { patch[`shopping/${x.id}`] = null; });
+    store.update("", patch);
+    toast("산 것을 지웠어요");
+  },
+  "shop-speak": () => {
+    const todo = list(data.shopping).filter((x) => !x.done).map((x) => `${x.title}${x.qty ? ` ${x.qty}` : ""}`);
+    speak(`사야 할 것 ${todo.length}개. ${todo.join(", ")}.`);
+  },
+  "mic-shop": (el) => micInto("shop", el),
   "prep-view": (el) => { prepView = el.dataset.view; renderPrep(); },
   "prep-toggle": (el) => {
     const k = el.dataset.day;
@@ -1663,6 +1760,7 @@ function setupEvents() {
   });
   document.addEventListener("input", (e) => {
     if (e.target.id === "mail-text") drafts.mail = e.target.value;
+    if (e.target.id === "shop-text") shopDraft.text = e.target.value;
     if (e.target.id === "music-q") {
       drafts.music = e.target.value;
       updateMusicLinks();
@@ -1678,6 +1776,7 @@ function setupEvents() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.dataset?.meal) e.target.blur();
+    if (e.key === "Enter" && e.target.id === "shop-text" && !e.isComposing) { e.preventDefault(); addShop(e.target.value); }
     if (e.key === "Enter" && e.target.id === "music-q") { e.preventDefault(); e.target.blur(); renderMusic(); }
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.target.id === "mail-text") actions["send-mail"]();
   });

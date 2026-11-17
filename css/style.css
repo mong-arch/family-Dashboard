@@ -428,3 +428,7 @@ textarea { resize: vertical; }
 .greet-btn:hover { background: rgba(255,255,255,.55); }
 .greet-pen { font-size: .6em; opacity: .6; vertical-align: middle; }
 .tile-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 17px; line-height: 1.35; }
+
+/* ---------- 사야 할 것 ---------- */
+.shop-qty { font-size: 13px; color: var(--ink-soft); }
+.shop-by { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
