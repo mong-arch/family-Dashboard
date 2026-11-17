@@ -291,7 +291,7 @@ function academyForm(a = {}) {
       { name: "end", label: "끝", type: "time", value: a.end || "16:00", required: true, half: true },
       { name: "place", label: "장소", type: "text", value: a.place, placeholder: "예: OO피아노" },
       { name: "supplies", label: "준비물 (쉼표로 구분)", type: "text", value: a.supplies, placeholder: "예: 리코더, 악보 파일, 실내화" },
-      { name: "fee", label: "월 학원비(원)", type: "number", value: a.fee ?? "", min: 0, step: 1000 },
+      { name: "fee", label: "월 학원비(원)", type: "number", value: a.fee ?? "", min: 0, step: 100, inputmode: "numeric" },
       { name: "color", label: "색깔", type: "select", value: a.color || "sky", options: COLORS }
     ],
     onSubmit: (v) => {
