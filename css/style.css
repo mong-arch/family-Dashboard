@@ -391,3 +391,9 @@ textarea { resize: vertical; }
 .piece-actions { display: flex; gap: 8px; align-items: center; }
 .piece-tap { flex: 1; min-height: 52px; font-size: 18px; }
 .passed summary { cursor: pointer; font-family: var(--font-title); padding: 6px 0; min-height: 40px; display: flex; align-items: center; }
+
+/* ---------- 구글 캘린더 ---------- */
+.dday.gcal { background: #F7FBFF; border-color: var(--sky-deep); }
+.dday.gcal .dday-count { color: #2F5DA8; }
+.gcal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.multi-picks { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }

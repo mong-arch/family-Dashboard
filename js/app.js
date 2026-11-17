@@ -1,6 +1,7 @@
 import { createStore, newId, hasFirebaseConfig } from "./store.js";
 import { seedData } from "./seed.js";
 import { listen, speak, speechSupported, ttsSupported, stopSpeaking } from "./speech.js";
+import { gcalConfigured, getToken, listCalendars, fetchEvents, preloadGoogle } from "./gcal.js";
 
 // =============================================================
 //  공통 도우미
@@ -183,7 +184,7 @@ function renderHero() {
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const next = todayAcademies().find((a) => toMin(a.end) >= nowMin);
   const dinner = data.meals?.[dateKey()];
-  const ev = upcomingEvents()[0];
+  const ev = [...upcomingEvents(), ...monthCalendarEvents().map((c) => ({ ...c, emoji: "📆" }))].sort((a, b) => a.diff - b.diff)[0];
   const ring = `conic-gradient(var(--coral) ${p.pct * 3.6}deg, #FFFFFF 0deg)`;
   paint("sec-hero", `
     <div class="hero-main">
@@ -467,23 +468,108 @@ async function redeem(id) {
 }
 
 // ---------------- 3. 가족 행사 & D-Day ----------------
+function monthCalendarEvents() {
+  const today = startOfDay();
+  const ym = dateKey(today).slice(0, 7);
+  return list(data.calendar?.events)
+    .filter((c) => String(c.date).startsWith(ym))
+    .map((c) => ({ ...c, kind: "gcal", date: parseDate(c.date), diff: Math.round((parseDate(c.date) - today) / 86400000) }))
+    .filter((c) => c.diff >= 0);
+}
 function renderDday() {
-  const evs = upcomingEvents();
+  const fam = upcomingEvents().map((e) => ({ ...e, kind: "family" }));
+  const cal = monthCalendarEvents();
+  const all = [...fam, ...cal].sort((a, b) => a.diff - b.diff || String(a.time || "").localeCompare(String(b.time || "")));
   const past = list(data.events).filter((e) => !e.yearly && nextOccurrence(e).diff < 0);
+  const synced = data.calendar?.syncedAt;
+  const now = new Date();
   paint("sec-dday", `
     <div class="card-head">
-      <h2 id="dday-title">🎂 가족 행사 D-Day</h2>
+      <h2 id="dday-title">🎂 가족 행사 & ${now.getMonth() + 1}월 일정</h2>
       ${isParent() ? `<button type="button" class="btn small" data-action="add-event">+ 행사 추가</button>` : ""}
     </div>
     <ul class="dday-list">
-      ${evs.map((e) => `<li class="dday ${e.diff === 0 ? "today" : e.diff <= 7 ? "soon" : ""}">
+      ${all.map((e) => e.kind === "gcal" ? `<li class="dday gcal ${e.diff === 0 ? "today" : e.diff <= 7 ? "soon" : ""}">
+        <span class="dday-emoji" aria-hidden="true">📆</span>
+        <div class="dday-body"><p class="dday-title">${esc(e.title)}</p><p class="dday-date">${fmtMD(e.date)} (${DAYS[dayIdx(e.date)]})${e.time ? ` ${esc(e.time)}` : " · 하루 종일"}${e.place ? ` · ${esc(e.place)}` : ""} <span class="tag">구글 캘린더</span></p></div>
+        <strong class="dday-count">${ddayLabel(e.diff)}</strong>
+      </li>` : `<li class="dday ${e.diff === 0 ? "today" : e.diff <= 7 ? "soon" : ""}">
         <span class="dday-emoji" aria-hidden="true">${esc(e.emoji || "📌")}</span>
         <div class="dday-body"><p class="dday-title">${esc(e.title)}</p><p class="dday-date">${e.date.getFullYear()}. ${fmtMD(e.date)} (${DAYS[dayIdx(e.date)]})${e.yearly ? " · 매년" : ""}</p></div>
         <strong class="dday-count">${ddayLabel(e.diff)}</strong>
         ${isParent() ? `<button type="button" class="mini-btn" data-action="edit-event" data-id="${esc(e.id)}" aria-label="${esc(e.title)} 수정">✏️</button>` : ""}
       </li>`).join("") || `<li class="empty">다가오는 행사가 없어요</li>`}
     </ul>
+    ${isParent() ? `<div class="gcal-bar">
+      <button type="button" class="btn small" data-action="gcal-sync">📆 ${synced ? "구글 캘린더 다시 가져오기" : "구글 캘린더 가져오기"}</button>
+      ${data.settings?.gcal?.calendars?.length ? `<button type="button" class="link-btn" data-action="gcal-pick">캘린더 고르기</button>` : ""}
+      ${synced ? `<span class="hint">마지막: ${timeAgo(synced)}${data.calendar?.by ? ` · ${esc(ROLES[data.calendar.by]?.label || "")}` : ""}</span>` : ""}
+    </div>` : ""}
     ${isParent() && past.length ? `<p class="hint">지난 행사 ${past.length}개는 숨겨져 있어요. <button type="button" class="link-btn" data-action="clean-events">정리하기</button></p>` : ""}`);
+}
+let gcalBusy = false;
+async function pickCalendars() {
+  const cals = await listCalendars();
+  const cur = data.settings?.gcal || {};
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    setTimeout(() => $("#form-dialog").addEventListener("close", () => finish(null), { once: true }), 0);
+    openForm({
+      title: "📆 가져올 캘린더 고르기",
+      fields: [
+        { name: "calendars", label: "캘린더", type: "multi", value: cur.calendars?.map((c) => c.id) || cals.filter((c) => c.primary).map((c) => c.id), options: cals.map((c) => ({ value: c.id, label: `${c.name}${c.primary ? " (기본)" : ""}` })) },
+        { name: "filter", label: "어떤 일정을 가져올까요?", type: "select", value: cur.filter || "all", options: [
+          { value: "all", label: "고른 캘린더의 모든 일정" },
+          { value: "allday", label: "하루 종일 일정만" },
+          { value: "keyword", label: "제목에 아래 단어가 들어간 일정만" }
+        ] },
+        { name: "keyword", label: "단어 (여러 개는 쉼표로)", type: "text", value: cur.keyword || "", placeholder: "예: 공연, 예매, 가족, 학교" }
+      ],
+      note: "가져온 일정 제목은 가족 코드를 아는 모든 기기(아이 화면 포함)에 보여요. 회사 일정이 섞인 캘린더는 빼거나 단어 필터를 써 주세요.",
+      submitLabel: "이걸로 가져오기",
+      onSubmit: (v) => {
+        if (!v.calendars.length) { toast("캘린더를 하나 이상 골라 주세요"); return false; }
+        const chosen = cals.filter((c) => v.calendars.includes(c.id)).map((c) => ({ id: c.id, name: c.name }));
+        const setting = { calendars: chosen, filter: v.filter, keyword: v.keyword };
+        store.set("settings/gcal", setting);
+        finish(setting);
+      }
+    });
+  });
+}
+async function syncCalendar(forcePick = false) {
+  if (!gcalConfigured()) {
+    toast("먼저 README의 '구글 캘린더 연결' 설정이 필요해요");
+    return;
+  }
+  if (gcalBusy) return;
+  gcalBusy = true;
+  try {
+    await getToken();
+    let setting = data.settings?.gcal;
+    if (forcePick || !setting?.calendars?.length) setting = await pickCalendars();
+    if (!setting) return;
+    toast("구글 캘린더에서 가져오는 중…");
+    const from = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const to = new Date(from.getFullYear(), from.getMonth() + 2, 1);
+    let evs = await fetchEvents(setting.calendars, from, to);
+    if (setting.filter === "allday") evs = evs.filter((e) => e.allDay);
+    if (setting.filter === "keyword") {
+      const words = String(setting.keyword || "").split(",").map((w) => w.trim()).filter(Boolean);
+      if (words.length) evs = evs.filter((e) => words.some((w) => e.title.includes(w)));
+    }
+    const events = {};
+    evs.forEach((e) => { const { key, ...rest } = e; events[key] = rest; });
+    await store.set("calendar", { events, syncedAt: Date.now(), by: myRole() });
+    toast(`📆 일정 ${evs.length}개를 가져왔어요`);
+  } catch (err) {
+    console.error(err);
+    const msg = String(err?.message || err);
+    toast(/popup/.test(msg) ? "팝업이 막혔어요. 팝업을 허용하고 다시 눌러 주세요" : /access_denied/.test(msg) ? "구글 권한을 허용해야 가져올 수 있어요" : msg);
+  } finally {
+    gcalBusy = false;
+  }
 }
 function eventForm(e = {}) {
   openForm({
@@ -830,6 +916,9 @@ function fieldHtml(f) {
       const l = typeof o === "object" ? o.label : o;
       return `<option value="${esc(v)}" ${String(v) === String(f.value) ? "selected" : ""}>${esc(l)}</option>`;
     }).join("")}</select>`;
+  } else if (f.type === "multi") {
+    return `<fieldset class="field full"><legend>${esc(f.label)}</legend><div class="multi-picks">${f.options.map((o) => `
+      <label class="check-field"><input type="checkbox" name="${esc(f.name)}" value="${esc(o.value)}" ${(f.value || []).includes(o.value) ? "checked" : ""}> <span>${esc(o.label)}</span></label>`).join("")}</div></fieldset>`;
   } else if (f.type === "days") {
     return `<fieldset class="field full"><legend>${esc(f.label)}</legend><div class="day-picks">${DAYS.map((d, i) => `
       <label class="day-pick"><input type="checkbox" name="${esc(f.name)}" value="${i}" ${(f.value || []).includes(i) ? "checked" : ""}><span>${d}</span></label>`).join("")}</div></fieldset>`;
@@ -867,6 +956,7 @@ function readForm() {
   const out = {};
   for (const f of formState.fields) {
     if (f.type === "days") out[f.name] = [...form.querySelectorAll(`input[name="${f.name}"]:checked`)].map((x) => Number(x.value));
+    else if (f.type === "multi") out[f.name] = [...form.querySelectorAll(`input[name="${f.name}"]:checked`)].map((x) => x.value);
     else if (f.type === "checkbox") out[f.name] = form.querySelector(`[name="${f.name}"]`).checked;
     else out[f.name] = form.querySelector(`[name="${f.name}"]`).value.trim();
   }
@@ -1002,7 +1092,7 @@ const CARDS = [
   { id: "sec-piano", label: "🎹 피아노 연습곡" },
   { id: "sec-stars", label: "🌟 별 스티커판" },
   { id: "sec-shop", label: "🎁 보상 상점" },
-  { id: "sec-dday", label: "🎂 가족 행사 D-Day" },
+  { id: "sec-dday", label: "🎂 가족 행사 & 이번 달 일정" },
   { id: "sec-meal", label: "🍚 저녁 메뉴" },
   { id: "sec-weekend", label: "🧺 주말 계획" },
   { id: "sec-status", label: "🙋 엄마·아빠 상태" },
@@ -1220,6 +1310,8 @@ const actions = {
   "mic-music": (el) => micInto("music", el),
   "fav-add": () => favForm(),
   "fav-edit": (el) => favForm({ id: el.dataset.id, ...data.music?.favorites?.[el.dataset.id] }),
+  "gcal-sync": () => syncCalendar(false),
+  "gcal-pick": () => syncCalendar(true),
   "add-piece": () => pieceForm(),
   "edit-piece": (el) => pieceForm({ id: el.dataset.id, ...data.piano?.[el.dataset.id] }),
   "piano-plus": (el) => pianoStep(el.dataset.id, 1),
@@ -1334,6 +1426,7 @@ async function start() {
     renderAll();
     checkNewMail();
   });
+  if (gcalConfigured()) preloadGoogle();
   setInterval(() => { renderTop(); renderHero(); renderSchedule(); renderDday(); renderStatus(); }, 60000);
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
