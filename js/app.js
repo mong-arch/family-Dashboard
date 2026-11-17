@@ -122,10 +122,16 @@ function confetti(emojis = ["⭐", "🌟", "✨", "💛"]) {
 }
 
 // ---------------- 계산 ----------------
-function todayAcademies(idx = dayIdx()) {
+function academiesOn(d) {
+  const idx = dayIdx(d);
+  const k = dateKey(d);
   return list(data.academies)
-    .filter((a) => (a.days || []).map(Number).includes(idx))
+    .filter((a) => a.repeat === false ? a.date === k : (a.days || []).map(Number).includes(idx))
     .sort((a, b) => toMin(a.start) - toMin(b.start));
+}
+// 이번 주(월~일) 기준 요일 번호로 찾기
+function todayAcademies(idx = dayIdx()) {
+  return academiesOn(addDays(startOfDay(), idx - dayIdx()));
 }
 function starTotals() {
   const logs = list(data.starsLog);
@@ -185,7 +191,6 @@ function renderHero() {
   const { balance } = starTotals();
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const next = todayAcademies().find((a) => toMin(a.end) >= nowMin);
-  const dinner = data.meals?.[dateKey()];
   const ev = [...upcomingEvents(), ...monthCalendarEvents().map((c) => ({ ...c, emoji: "📆" }))].sort((a, b) => a.diff - b.diff)[0];
   const ring = `conic-gradient(var(--coral) ${p.pct * 3.6}deg, #FFFFFF 0deg)`;
   paint("sec-hero", `
@@ -201,7 +206,6 @@ function renderHero() {
     <ul class="hero-tiles">
       <li><span class="tile-label">다음 일정</span><span class="tile-value">${next ? `${esc(next.start)} ${esc(next.name)}` : "오늘 일정 끝!"}</span>
         ${next && next.place ? `<span class="tile-sub">📍 ${esc(next.place)}</span>` : ""}</li>
-      <li><span class="tile-label">오늘 저녁</span><span class="tile-value">${dinner ? esc(dinner) : "아직 몰라요"}</span></li>
       ${heroWeatherTile()}
       <li><span class="tile-label">다가오는 날</span><span class="tile-value">${ev ? `${esc(ev.emoji || "📌")} ${esc(ev.title)}` : "없음"}</span>
         ${ev ? `<span class="tile-sub">${ddayLabel(ev.diff)}</span>` : ""}</li>
@@ -226,7 +230,7 @@ function heroWeatherTile() {
 function academyChip(a, compact = false) {
   return `<button type="button" class="ac-chip c-${esc(a.color || "sky")}" data-action="edit-academy" data-id="${esc(a.id)}" ${isParent() ? "" : "disabled"}>
     <span class="ac-time">${esc(a.start)}${compact ? "" : `–${esc(a.end)}`}</span>
-    <span class="ac-name">${esc(a.name)}</span>
+    <span class="ac-name">${esc(a.name)}${a.repeat === false ? " ·1회" : ""}</span>
   </button>`;
 }
 function renderSchedule() {
@@ -238,7 +242,7 @@ function renderSchedule() {
     return `<li class="today-item c-${esc(a.color || "sky")} ${st}">
       <div class="ti-time"><strong>${esc(a.start)}</strong><span>${esc(a.end)}</span></div>
       <div class="ti-body">
-        <p class="ti-name">${esc(a.name)} <span class="tag">${esc(a.type || "학원")}</span> ${badge ? `<span class="badge ${st}">${badge}</span>` : ""}</p>
+        <p class="ti-name">${esc(a.name)} <span class="tag">${esc(a.type || "학원")}</span>${a.repeat === false ? ` <span class="tag">1회</span>` : ""} ${badge ? `<span class="badge ${st}">${badge}</span>` : ""}</p>
         ${a.place ? `<p class="ti-place">📍 ${esc(a.place)}</p>` : ""}
       </div>
       ${isParent() ? `<button type="button" class="mini-btn" data-action="edit-academy" data-id="${esc(a.id)}" aria-label="${esc(a.name)} 수정">✏️</button>` : ""}
@@ -254,18 +258,20 @@ function renderSchedule() {
     </div>`;
   }).join("");
 
-  const all = list(data.academies);
+  const ym = dateKey().slice(0, 7);
+  const all = list(data.academies).filter((a) => a.repeat !== false || String(a.date || "").startsWith(ym));
   const feeTotal = all.reduce((s, a) => s + (Number(a.fee) || 0), 0);
+  const upcomingOnce = list(data.academies).filter((a) => a.repeat === false && a.date >= dateKey()).sort((a, b) => a.date.localeCompare(b.date));
   const feeHtml = isParent() ? `
     <div class="fee-box parent-only">
       <div class="fee-head"><h3>💰 이번 달 학원비</h3><strong>${won(feeTotal)}</strong></div>
-      <ul class="fee-list">${all.sort((a, b) => (Number(b.fee) || 0) - (Number(a.fee) || 0)).map((a) => `<li><span>${esc(a.name)}</span><span>${won(a.fee)}</span></li>`).join("") || "<li>등록된 학원이 없어요</li>"}</ul>
+      <ul class="fee-list">${all.sort((a, b) => (Number(b.fee) || 0) - (Number(a.fee) || 0)).map((a) => `<li><span>${esc(a.name)}${a.repeat === false ? ` (1회 · ${esc(a.date.slice(5).replace("-", "/"))})` : ""}</span><span>${won(a.fee)}</span></li>`).join("") || "<li>등록된 학원이 없어요</li>"}</ul>
     </div>` : "";
 
   paint("sec-schedule", `
     <div class="card-head">
       <h2 id="schedule-title">📅 학원·방과후 스케줄</h2>
-      ${isParent() ? `<button type="button" class="btn small" data-action="add-academy">+ 학원 추가</button>` : ""}
+      ${isParent() ? `<button type="button" class="btn small" data-action="add-academy">+ 학원·일정 추가</button>` : ""}
     </div>
     <div class="schedule-grid">
       <div>
@@ -275,6 +281,7 @@ function renderSchedule() {
       <div class="week-wrap">
         <h3 class="sub-title">이번 주 시간표</h3>
         <div class="week-scroll" tabindex="0" aria-label="주간 시간표"><div class="week">${week}</div></div>
+        ${upcomingOnce.length ? `<h3 class="sub-title">다가오는 1회 일정</h3><ul class="log-list">${upcomingOnce.map((a) => { const d = parseDate(a.date); return `<li><span>${fmtMD(d)}(${DAYS[dayIdx(d)]}) ${esc(a.start)} ${esc(a.name)}</span>${isParent() ? `<button type="button" class="link-btn" data-action="edit-academy" data-id="${esc(a.id)}">수정</button>` : ""}</li>`; }).join("")}</ul>` : ""}
       </div>
     </div>
     ${feeHtml}`);
@@ -282,11 +289,13 @@ function renderSchedule() {
 
 function academyForm(a = {}) {
   openForm({
-    title: a.id ? "학원 수정" : "학원 추가",
+    title: a.id ? "일정 수정" : "학원·일정 추가",
     fields: [
       { name: "name", label: "이름", type: "text", value: a.name, required: true, placeholder: "예: 피아노" },
       { name: "type", label: "종류", type: "select", value: a.type || "학원", options: ACADEMY_TYPES },
-      { name: "days", label: "요일", type: "days", value: (a.days || []).map(Number) },
+      { name: "repeat", label: "🔁 매주 반복 (체크 해제하면 한 번만 있는 일정: 보강·특강 등)", type: "checkbox", value: a.repeat !== false },
+      { name: "days", label: "요일 (매주 반복일 때)", type: "days", value: (a.days || []).map(Number) },
+      { name: "date", label: "날짜 (한 번만일 때)", type: "date", value: a.date || dateKey() },
       { name: "start", label: "시작", type: "time", value: a.start || "15:00", required: true, half: true },
       { name: "end", label: "끝", type: "time", value: a.end || "16:00", required: true, half: true },
       { name: "place", label: "장소", type: "text", value: a.place, placeholder: "예: OO피아노" },
@@ -295,9 +304,12 @@ function academyForm(a = {}) {
       { name: "color", label: "색깔", type: "select", value: a.color || "sky", options: COLORS }
     ],
     onSubmit: (v) => {
-      if (!v.days.length) { toast("요일을 하나 이상 골라 주세요"); return false; }
+      if (v.repeat && !v.days.length) { toast("요일을 하나 이상 골라 주세요"); return false; }
+      if (!v.repeat && !v.date) { toast("날짜를 골라 주세요"); return false; }
       const id = a.id || newId();
-      store.set(`academies/${id}`, { ...v, fee: Number(v.fee) || 0 });
+      const rec = { ...v, fee: Number(v.fee) || 0 };
+      if (v.repeat) delete rec.date; else rec.days = [];
+      store.set(`academies/${id}`, rec);
       toast("저장했어요");
     },
     onDelete: a.id ? () => { store.remove(`academies/${a.id}`); toast("삭제했어요"); } : null
@@ -944,7 +956,7 @@ function prepItemsFor(d) {
   if (school.length) groups.push({ name: "🏫 학교·공통", items: school });
   const wxItems = weatherPrepItems(d);
   if (wxItems.length) groups.unshift({ name: "🌦️ 날씨 때문에", items: wxItems });
-  todayAcademies(idx).forEach((a) => {
+  academiesOn(d).forEach((a) => {
     const sup = String(a.supplies || "").split(",").map((x) => x.trim()).filter(Boolean);
     if (sup.length) groups.push({ name: `${a.type === "방과후" ? "🧪" : "🎵"} ${a.name} (${a.start})`, items: sup.map((t, i) => ({ key: `a_${a.id}_${i}`, title: t, emoji: "🧩", tag: a.type || "학원", academy: a.id })) });
   });
