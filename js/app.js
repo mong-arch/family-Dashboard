@@ -199,7 +199,7 @@ function renderHero() {
         <div class="ring-inner"><strong>${p.pct}%</strong><span>오늘 달성</span></div>
       </div>
       <div class="hero-text">
-        <h2 id="hero-title">${esc(name)}, 오늘도 반짝반짝! ✨</h2>
+        <h2 id="hero-title">${isParent() ? `<button type="button" class="greet-btn" data-action="edit-greeting" aria-label="인사말 바꾸기">${esc(greetingText(name))} <span class="greet-pen" aria-hidden="true">✏️</span></button>` : esc(greetingText(name))}</h2>
         <p>오늘 할 일 <b>${p.done}</b> / ${p.total} 완료 · 모은 별 <b>⭐ ${balance}</b></p>
       </div>
     </div>
@@ -224,6 +224,25 @@ function heroWeatherTile() {
     g ? `먼지 ${g.label}` : ""
   ].filter(Boolean).join(" · ");
   return `<li class="tile-link"><a href="#sec-weather" aria-label="날씨 자세히 보기"><span class="tile-label">${esc(wxPlace().name)} 날씨</span><span class="tile-value">${emo} ${Math.round(wx.now.temp)}° ${label}</span>${sub ? `<span class="tile-sub">${sub}</span>` : ""}</a></li>`;
+}
+
+const DEFAULT_GREETING = "{이름}, 오늘도 반짝반짝! ✨";
+function greetingText(name) {
+  const g = data.settings?.greeting || DEFAULT_GREETING;
+  return g.replace(/\{이름\}/g, name);
+}
+function greetingForm() {
+  openForm({
+    title: "💬 인사말 바꾸기",
+    fields: [
+      { name: "greeting", label: "인사말", type: "text", value: data.settings?.greeting || DEFAULT_GREETING, required: true, placeholder: "예: {이름}, 오늘도 멋지게 해 보자! 💪" }
+    ],
+    note: "{이름}이라고 쓰면 아이 이름으로 바뀌어요. 예: '{이름}아, 사랑해 💖' → '유아나아, 사랑해 💖'",
+    onSubmit: (v) => { store.set("settings/greeting", v.greeting); toast("인사말을 바꿨어요"); },
+    onDelete: data.settings?.greeting ? () => { store.remove("settings/greeting"); toast("기본 인사말로 돌렸어요"); } : null
+  });
+  const del = $("#form-dialog-delete");
+  if (!del.hidden) del.textContent = "기본으로";
 }
 
 // ---------------- 1. 학원·방과후 스케줄 ----------------
@@ -1282,6 +1301,7 @@ function openSettings() {
   if (isParent()) {
     fields.push(
       { name: "childName", label: "아이 이름(호칭)", type: "text", value: data.settings?.childName || "" },
+      { name: "greeting", label: "인사말 ({이름}은 아이 이름으로 바뀌어요)", type: "text", value: data.settings?.greeting || DEFAULT_GREETING },
       { name: "newPin", label: "새 부모 PIN (바꿀 때만 입력)", type: "password", inputmode: "numeric", autocomplete: "new-password", placeholder: "숫자 4자리 이상" }
     );
   }
@@ -1298,6 +1318,7 @@ function openSettings() {
       if (isParent()) {
         const patch = {};
         if (v.childName) patch["settings/childName"] = v.childName;
+        if (v.greeting) patch["settings/greeting"] = v.greeting;
         if (v.newPin) {
           if (!/^\d{4,8}$/.test(v.newPin)) { toast("PIN은 숫자 4~8자리로 해 주세요"); return false; }
           patch["settings/pinHash"] = await hashPin(v.newPin);
@@ -1557,6 +1578,7 @@ const actions = {
   "fav-edit": (el) => favForm({ id: el.dataset.id, ...data.music?.favorites?.[el.dataset.id] }),
   "wx-refresh": () => { toast("날씨를 새로 불러와요"); loadWeather(true); },
   "wx-place": () => placeForm(),
+  "edit-greeting": () => greetingForm(),
   "prep-view": (el) => { prepView = el.dataset.view; renderPrep(); },
   "prep-toggle": (el) => {
     const k = el.dataset.day;
