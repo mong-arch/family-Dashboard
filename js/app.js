@@ -652,6 +652,25 @@ function checkNewMail() {
 
 // ---------------- 6. 음악 ----------------
 const melonUrl = (q) => `https://www.melon.com/search/total/index.htm?q=${encodeURIComponent(q)}`;
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const MELON_PKG = "com.iloen.melon";
+const melonAppIntent = (q) => `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${MELON_PKG};S.browser_fallback_url=${encodeURIComponent(melonUrl(q))};end`;
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* 아래 방식으로 */ }
+  try {
+    const t = document.createElement("textarea");
+    t.value = text; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0";
+    document.body.appendChild(t); t.select();
+    const ok = document.execCommand("copy");
+    t.remove();
+    return ok;
+  } catch { return false; }
+}
+async function openMelonApp(q) {
+  const copied = await copyText(q);
+  toast(copied ? `"${q}" 복사했어요 · 멜론 검색창에 붙여넣기 하세요` : "멜론 앱을 열어요");
+  setTimeout(() => { location.href = melonAppIntent(q); }, copied ? 400 : 0);
+}
 const ytmUrl = (q) => `https://music.youtube.com/search?q=${encodeURIComponent(q)}`;
 function renderMusic() {
   const favs = list(data.music?.favorites).sort((a, b) => (a.ts || 0) - (b.ts || 0));
@@ -664,7 +683,7 @@ function renderMusic() {
       ${speechSupported() ? `<button type="button" class="btn mic" data-action="mic-music" aria-label="말로 검색어 입력">🎤</button>` : ""}
     </div>
     <div class="music-actions">
-      <a class="btn melon ${q ? "" : "is-disabled"}" ${q ? `href="${melonUrl(q)}"` : `aria-disabled="true"`} target="_blank" rel="noopener" data-music-link="melon">🍈 멜론에서 찾기</a>
+      <a class="btn melon ${q ? "" : "is-disabled"}" ${q ? `href="${melonUrl(q)}"` : `aria-disabled="true"`} target="_blank" rel="noopener" data-music-link="melon" data-melon-q="${esc(q)}">🍈 ${IS_ANDROID ? "멜론 앱에서 찾기" : "멜론에서 찾기"}</a>
       <a class="btn ytm ${q ? "" : "is-disabled"}" ${q ? `href="${ytmUrl(q)}"` : `aria-disabled="true"`} target="_blank" rel="noopener" data-music-link="ytm">▶️ 유튜브 뮤직</a>
       <button type="button" class="btn small" data-action="fav-add" ${q ? "" : "disabled"}>☆ 즐겨찾기</button>
     </div>
@@ -674,7 +693,7 @@ function renderMusic() {
         const term = [f.title, f.artist].filter(Boolean).join(" ");
         return `<li class="fav">
           <div class="fav-body"><p class="fav-title">${esc(f.title)}</p>${f.artist ? `<p class="fav-artist">${esc(f.artist)}</p>` : ""}</div>
-          <a class="mini-btn melon" href="${melonUrl(term)}" target="_blank" rel="noopener" aria-label="${esc(term)} 멜론에서 찾기">🍈</a>
+          <a class="mini-btn melon" href="${melonUrl(term)}" target="_blank" rel="noopener" data-melon-q="${esc(term)}" aria-label="${esc(term)} 멜론에서 찾기">🍈</a>
           <a class="mini-btn ytm" href="${ytmUrl(term)}" target="_blank" rel="noopener" aria-label="${esc(term)} 유튜브 뮤직에서 찾기">▶️</a>
           <button type="button" class="mini-btn" data-action="fav-edit" data-id="${esc(f.id)}" aria-label="${esc(f.title)} 수정">✏️</button>
         </li>`;
@@ -1218,6 +1237,12 @@ function setupEvents() {
   document.addEventListener("click", (e) => {
     const link = e.target.closest("a.is-disabled");
     if (link) { e.preventDefault(); toast("먼저 노래 제목이나 가수를 입력해 주세요"); return; }
+    const melon = e.target.closest("a[data-melon-q]");
+    if (melon && IS_ANDROID && melon.dataset.melonQ) {
+      e.preventDefault();
+      openMelonApp(melon.dataset.melonQ);
+      return;
+    }
     const el = e.target.closest("[data-action]");
     if (!el || el.disabled) return;
     const fn = actions[el.dataset.action];
@@ -1251,6 +1276,7 @@ function updateMusicLinks() {
   document.querySelectorAll("[data-music-link]").forEach((a) => {
     if (q) {
       a.href = a.dataset.musicLink === "melon" ? melonUrl(q) : ytmUrl(q);
+      if (a.dataset.musicLink === "melon") a.dataset.melonQ = q;
       a.classList.remove("is-disabled");
       a.removeAttribute("aria-disabled");
     } else {
