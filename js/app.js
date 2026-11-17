@@ -28,6 +28,7 @@ const timeAgo = (ts) => {
   if (h < 24) return `${h}시간 전`;
   return `${Math.floor(h / 24)}일 전`;
 };
+const iga = (w) => { const c = String(w).trim().slice(-1).charCodeAt(0); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 ? "이" : "가"; };
 const clock = (ts) => { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 const ROLES = {
@@ -276,6 +277,7 @@ function academyForm(a = {}) {
       { name: "dropoff", label: "데려다주기", type: "select", value: a.dropoff || "엄마", options: PEOPLE, half: true },
       { name: "pickup", label: "데리러가기", type: "select", value: a.pickup || "아빠", options: PEOPLE, half: true },
       { name: "place", label: "장소", type: "text", value: a.place, placeholder: "예: OO피아노" },
+      { name: "supplies", label: "준비물 (쉼표로 구분)", type: "text", value: a.supplies, placeholder: "예: 리코더, 악보 파일, 실내화" },
       { name: "fee", label: "월 학원비(원)", type: "number", value: a.fee ?? "", min: 0, step: 1000 },
       { name: "color", label: "색깔", type: "select", value: a.color || "sky", options: COLORS }
     ],
@@ -799,6 +801,110 @@ function favForm(f = {}) {
   });
 }
 
+// ---------------- 준비물 챙기기 ----------------
+let prepView = null; // "today" | "tomorrow"
+const prepDayOf = () => {
+  if (prepView) return prepView;
+  return new Date().getHours() >= 15 ? "tomorrow" : "today";
+};
+function prepItemsFor(d) {
+  const k = dateKey(d);
+  const idx = dayIdx(d);
+  const groups = [];
+  const school = [];
+  list(data.prep?.regular).forEach((r) => {
+    const days = (r.days || []).map(Number);
+    const on = days.length ? days.includes(idx) : idx < 5;
+    if (on) school.push({ key: `r_${r.id}`, title: r.title, emoji: r.emoji || "🎒", tag: days.length ? `매주 ${days.map((x) => DAYS[x]).join("·")}` : "평일마다", edit: { kind: "regular", id: r.id } });
+  });
+  list(data.prep?.once).filter((o) => o.date === k).forEach((o) => {
+    school.push({ key: `o_${o.id}`, title: o.title, emoji: o.emoji || "📌", tag: "이날만", edit: { kind: "once", id: o.id } });
+  });
+  if (school.length) groups.push({ name: "🏫 학교·공통", items: school });
+  todayAcademies(idx).forEach((a) => {
+    const sup = String(a.supplies || "").split(",").map((x) => x.trim()).filter(Boolean);
+    if (sup.length) groups.push({ name: `${a.type === "방과후" ? "🧪" : "🎵"} ${a.name} (${a.start})`, items: sup.map((t, i) => ({ key: `a_${a.id}_${i}`, title: t, emoji: "🧩", tag: a.type || "학원", academy: a.id })) });
+  });
+  return groups;
+}
+function renderPrep() {
+  const view = prepDayOf();
+  const d = view === "today" ? startOfDay() : addDays(startOfDay(), 1);
+  const k = dateKey(d);
+  const groups = prepItemsFor(d);
+  const all = groups.flatMap((g) => g.items);
+  const checked = data.daily?.[k]?.prep?.items || {};
+  const n = all.filter((it) => checked[it.key]).length;
+  const doneRec = data.daily?.[k]?.prep?.done;
+  const okRec = data.daily?.[k]?.prep?.ok;
+  const allChecked = all.length > 0 && n === all.length;
+  const parent = isParent();
+  const who = (r) => (ROLES[r?.by]?.label || "") ;
+  const kid = data.settings?.childName || "아이";
+  paint("sec-prep", `
+    <div class="card-head">
+      <h2 id="prep-title">🎒 챙겨야 할 것</h2>
+      ${ttsSupported() && all.length ? `<button type="button" class="btn small" data-action="prep-speak">🔊 읽어주기</button>` : ""}
+    </div>
+    <div class="seg" role="group" aria-label="날짜 고르기">
+      <button type="button" class="seg-btn ${view === "today" ? "on" : ""}" data-action="prep-view" data-view="today" aria-pressed="${view === "today"}">오늘 ${fmtMD(startOfDay())}(${DAYS[dayIdx()]})</button>
+      <button type="button" class="seg-btn ${view === "tomorrow" ? "on" : ""}" data-action="prep-view" data-view="tomorrow" aria-pressed="${view === "tomorrow"}">내일 ${fmtMD(addDays(startOfDay(), 1))}(${DAYS[dayIdx(addDays(startOfDay(), 1))]})</button>
+    </div>
+    ${all.length ? `<div class="bar" role="img" aria-label="${all.length}개 중 ${n}개 챙김"><span style="width:${Math.round(n / all.length * 100)}%"></span></div>
+      <p class="hint">${n} / ${all.length} 챙겼어요</p>` : ""}
+    ${groups.map((g) => `<h3 class="sub-title">${esc(g.name)}</h3>
+      <ul class="check-list">${g.items.map((it) => {
+        const on = !!checked[it.key];
+        return `<li class="check-row ${on ? "done" : ""}">
+          <button type="button" class="check-btn" data-action="prep-toggle" data-key="${esc(it.key)}" data-day="${k}" aria-pressed="${on}">
+            <span class="check-box" aria-hidden="true">${on ? "✓" : ""}</span>
+            <span class="check-emoji" aria-hidden="true">${esc(it.emoji)}</span>
+            <span class="check-label">${esc(it.title)}</span>
+            <span class="tag">${esc(it.tag)}</span>
+          </button>
+          ${parent && it.edit ? `<button type="button" class="mini-btn" data-action="prep-edit" data-kind="${it.edit.kind}" data-id="${esc(it.edit.id)}" aria-label="${esc(it.title)} 수정">✏️</button>` : ""}
+          ${parent && it.academy ? `<button type="button" class="mini-btn" data-action="edit-academy" data-id="${esc(it.academy)}" aria-label="학원 준비물 수정">✏️</button>` : ""}
+        </li>`;
+      }).join("")}</ul>`).join("") || `<p class="empty">${view === "today" ? "오늘" : "내일"}은 챙길 게 없어요 🎈</p>`}
+    ${all.length ? `<div class="prep-confirm ${doneRec ? "is-done" : ""}">
+      ${doneRec
+        ? `<p class="confirm-line">✅ <b>${esc(kid)}</b>${iga(kid)} ${clock(doneRec.ts)}에 <b>다 챙겼다고</b> 했어요${doneRec.by && doneRec.by !== "kid" && doneRec.by !== "tablet" ? ` (${esc(who(doneRec))} 폰에서)` : ""}</p>
+           ${okRec ? `<p class="confirm-line ok">👍 ${esc(who(okRec))}${iga(who(okRec))} ${clock(okRec.ts)}에 확인했어요</p>`
+             : parent ? `<button type="button" class="btn primary" data-action="prep-ok" data-day="${k}">👍 확인했어요</button>` : `<p class="hint">엄마·아빠가 확인하면 여기에 표시돼요</p>`}
+           <button type="button" class="link-btn" data-action="prep-undo" data-day="${k}">확인 취소</button>`
+        : `<button type="button" class="btn ${allChecked ? "primary" : ""} prep-done-btn" data-action="prep-done" data-day="${k}" ${allChecked ? "" : "disabled"}>${allChecked ? "🙌 다 챙겼어요!" : `${all.length - n}개 더 챙기면 확인할 수 있어요`}</button>`}
+    </div>` : ""}
+    <div class="gcal-bar">
+      <button type="button" class="btn small" data-action="prep-add-once" data-day="${k}">+ 이날만 챙길 것</button>
+      ${parent ? `<button type="button" class="btn small" data-action="prep-add-regular">+ 매주 챙길 것</button>` : ""}
+    </div>
+    ${parent ? `<p class="hint">학원·방과후 준비물은 스케줄 카드에서 학원을 눌러 '준비물' 칸에 적으면 수업 있는 날 자동으로 나와요.</p>` : ""}`);
+}
+function prepRegularForm(r = {}) {
+  openForm({
+    title: r.id ? "매주 챙길 것 수정" : "매주 챙길 것 추가",
+    fields: [
+      { name: "title", label: "준비물", type: "text", value: r.title, required: true, placeholder: "예: 체육복, 실내화 가방" },
+      { name: "emoji", label: "그림(이모지)", type: "text", value: r.emoji || "🎒" },
+      { name: "days", label: "요일 (아무것도 안 고르면 평일마다)", type: "days", value: (r.days || []).map(Number) }
+    ],
+    onSubmit: (v) => { store.set(`prep/regular/${r.id || newId()}`, v); toast("저장했어요"); },
+    onDelete: r.id ? () => store.remove(`prep/regular/${r.id}`) : null
+  });
+}
+function prepOnceForm(o = {}, day) {
+  openForm({
+    title: o.id ? "이날만 챙길 것 수정" : "이날만 챙길 것 추가",
+    fields: [
+      { name: "title", label: "준비물", type: "text", value: o.title, required: true, placeholder: "예: 현장학습 도시락, 가정통신문 회신" },
+      { name: "date", label: "날짜", type: "date", value: o.date || day || dateKey(), required: true, half: true },
+      { name: "emoji", label: "그림(이모지)", type: "text", value: o.emoji || "📌", half: true }
+    ],
+    onSubmit: (v) => { store.set(`prep/once/${o.id || newId()}`, v); toast("저장했어요"); },
+    onDelete: o.id ? () => store.remove(`prep/once/${o.id}`) : null
+  });
+}
+
 // ---------------- 피아노 연습곡 ----------------
 const activePieces = () => list(data.piano).filter((x) => x.status !== "passed").sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
 const pieceTarget = (x) => Math.max(1, Number(x.target) || 5);
@@ -891,6 +997,7 @@ function renderAll() {
   renderTop();
   renderHero();
   renderSchedule();
+  renderPrep();
   renderStudy();
   renderPiano();
   renderStars();
@@ -1088,6 +1195,7 @@ function openSettings() {
 //  화면 꾸미기 (카드 순서·숨기기, 이 기기에만 저장)
 // =============================================================
 const CARDS = [
+  { id: "sec-prep", label: "🎒 챙겨야 할 것" },
   { id: "sec-study", label: "📚 오늘 공부할 것" },
   { id: "sec-piano", label: "🎹 피아노 연습곡" },
   { id: "sec-stars", label: "🌟 별 스티커판" },
@@ -1310,6 +1418,52 @@ const actions = {
   "mic-music": (el) => micInto("music", el),
   "fav-add": () => favForm(),
   "fav-edit": (el) => favForm({ id: el.dataset.id, ...data.music?.favorites?.[el.dataset.id] }),
+  "prep-view": (el) => { prepView = el.dataset.view; renderPrep(); },
+  "prep-toggle": (el) => {
+    const k = el.dataset.day;
+    const on = !!data.daily?.[k]?.prep?.items?.[el.dataset.key];
+    const patch = { [`daily/${k}/prep/items/${el.dataset.key}`]: on ? null : true };
+    if (on && data.daily?.[k]?.prep?.done) {
+      patch[`daily/${k}/prep/done`] = null;
+      patch[`daily/${k}/prep/ok`] = null;
+      patch[`starsLog/${k}_prep`] = null;
+    }
+    store.update("", patch);
+  },
+  "prep-done": (el) => {
+    const k = el.dataset.day;
+    store.update("", {
+      [`daily/${k}/prep/done`]: { by: myRole(), ts: Date.now() },
+      [`starsLog/${k}_prep`]: { amount: 1, reason: "🎒 준비물 다 챙김", date: k, ts: Date.now() }
+    });
+    toast("🙌 다 챙겼어요! ⭐ 1개");
+    confetti(["🎒", "✨", "⭐", "👍"]);
+  },
+  "prep-ok": (el) => {
+    store.set(`daily/${el.dataset.day}/prep/ok`, { by: myRole(), ts: Date.now() });
+    toast("👍 확인했어요");
+  },
+  "prep-undo": (el) => {
+    const k = el.dataset.day;
+    store.update("", { [`daily/${k}/prep/done`]: null, [`daily/${k}/prep/ok`]: null, [`starsLog/${k}_prep`]: null });
+  },
+  "prep-add-once": (el) => prepOnceForm({}, el.dataset.day),
+  "prep-add-regular": () => prepRegularForm(),
+  "prep-edit": (el) => {
+    const kind = el.dataset.kind, id = el.dataset.id;
+    const rec = data.prep?.[kind]?.[id];
+    if (!rec) return;
+    if (kind === "regular") prepRegularForm({ id, ...rec });
+    else prepOnceForm({ id, ...rec });
+  },
+  "prep-speak": () => {
+    const view = prepDayOf();
+    const d = view === "today" ? startOfDay() : addDays(startOfDay(), 1);
+    const k = dateKey(d);
+    const checked = data.daily?.[k]?.prep?.items || {};
+    const left = prepItemsFor(d).flatMap((g) => g.items).filter((it) => !checked[it.key]).map((it) => it.title);
+    speak(left.length ? `${view === "today" ? "오늘" : "내일"} 챙길 것. ${left.join(", ")}. 모두 ${left.length}개예요.` : "다 챙겼어요. 잘했어요!");
+  },
   "gcal-sync": () => syncCalendar(false),
   "gcal-pick": () => syncCalendar(true),
   "add-piece": () => pieceForm(),

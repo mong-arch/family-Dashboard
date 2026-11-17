@@ -397,3 +397,13 @@ textarea { resize: vertical; }
 .dday.gcal .dday-count { color: #2F5DA8; }
 .gcal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .multi-picks { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
+
+/* ---------- 준비물 ---------- */
+.seg { display: flex; gap: 6px; background: rgba(255,255,255,.7); padding: 4px; border-radius: 14px; border: 1px solid var(--line); }
+.seg-btn { flex: 1; min-height: 44px; border: none; border-radius: 11px; background: transparent; cursor: pointer; font-family: var(--font-title); font-size: 16px; }
+.seg-btn.on { background: #fff; box-shadow: 0 2px 8px rgba(160,110,80,.15); color: var(--coral-dark); }
+.prep-confirm { background: #fff; border: 2px dashed var(--sky-deep); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.prep-confirm.is-done { border-style: solid; border-color: var(--mint-deep); background: #F4FCF7; }
+.confirm-line { font-size: 15px; }
+.confirm-line.ok { color: #2F7D57; }
+.prep-done-btn { min-height: 52px; font-size: 18px; }
