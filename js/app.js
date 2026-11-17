@@ -136,8 +136,10 @@ function todayProgress() {
   const sheets = list(data.worksheets);
   const doneR = routines.filter((r) => data.daily?.[k]?.routines?.[r.id]).length;
   const doneW = sheets.filter((w) => data.daily?.[k]?.worksheets?.[w.id]).length;
-  const total = routines.length + sheets.length;
-  const done = doneR + doneW;
+  const pieces = activePieces();
+  const doneP = pieces.filter((x) => pianoCount(x.id) >= pieceTarget(x)).length;
+  const total = routines.length + sheets.length + pieces.length;
+  const done = doneR + doneW + doneP;
   return { total, done, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 function nextOccurrence(ev) {
@@ -692,6 +694,90 @@ function favForm(f = {}) {
   });
 }
 
+// ---------------- 피아노 연습곡 ----------------
+const activePieces = () => list(data.piano).filter((x) => x.status !== "passed").sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+const pieceTarget = (x) => Math.max(1, Number(x.target) || 5);
+const pianoCount = (id) => Number(data.daily?.[dateKey()]?.piano?.[id]) || 0;
+const ytUrl = (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+function renderPiano() {
+  const pieces = activePieces();
+  const passed = list(data.piano).filter((x) => x.status === "passed").sort((a, b) => (b.passedAt || 0) - (a.passedAt || 0));
+  const parent = isParent();
+  const items = pieces.map((x) => {
+    const cnt = pianoCount(x.id);
+    const tgt = pieceTarget(x);
+    const done = cnt >= tgt;
+    const notes = Array.from({ length: tgt }, (_, i) => `<span class="note ${i < cnt ? "on" : ""}" aria-hidden="true">${i < cnt ? "🎵" : "·"}</span>`).join("");
+    const days = x.startedAt ? Math.max(1, Math.round((startOfDay() - startOfDay(new Date(x.startedAt))) / 86400000) + 1) : null;
+    return `<li class="piece ${done ? "done" : ""}">
+      <div class="piece-head">
+        <div class="piece-title-wrap">
+          <p class="piece-title">${esc(x.title)}</p>
+          <p class="piece-meta">${x.book ? `<span class="tag">${esc(x.book)}</span> ` : ""}${days ? `연습 ${days}일째` : ""}</p>
+        </div>
+        <a class="mini-btn ytm" href="${ytUrl(`${x.title} 피아노`)}" target="_blank" rel="noopener" aria-label="${esc(x.title)} 유튜브에서 듣기">🎧</a>
+        ${parent ? `<button type="button" class="mini-btn" data-action="edit-piece" data-id="${esc(x.id)}" aria-label="${esc(x.title)} 수정">✏️</button>` : ""}
+      </div>
+      ${x.note ? `<p class="piece-note">📝 ${esc(x.note)}</p>` : ""}
+      <div class="notes" role="img" aria-label="오늘 ${tgt}번 중 ${cnt}번 연습">${notes}</div>
+      <div class="piece-actions">
+        <button type="button" class="btn ${done ? "" : "primary"} piece-tap" data-action="piano-plus" data-id="${esc(x.id)}">${done ? `🎉 오늘 목표 끝! (${cnt}번)` : `🎹 한 번 쳤어요! ${cnt}/${tgt}`}</button>
+        <button type="button" class="mini-btn" data-action="piano-minus" data-id="${esc(x.id)}" ${cnt ? "" : "disabled"} aria-label="한 번 빼기">−1</button>
+      </div>
+      ${parent ? `<button type="button" class="link-btn" data-action="pass-piece" data-id="${esc(x.id)}">🏅 선생님께 통과했어요</button>` : ""}
+    </li>`;
+  }).join("") || `<li class="empty">지금 연습 중인 곡이 없어요${parent ? ". 새 곡을 추가해 주세요 🎼" : ""}</li>`;
+  paint("sec-piano", `
+    <div class="card-head">
+      <h2 id="piano-title">🎹 피아노 연습곡</h2>
+      ${parent ? `<button type="button" class="btn small" data-action="add-piece">+ 연습곡 추가</button>` : ""}
+    </div>
+    <p class="hint">칠 때마다 버튼을 눌러요. 오늘 목표를 채우면 ⭐을 받아요!</p>
+    <ul class="piece-list">${items}</ul>
+    ${passed.length ? `<details class="passed">
+      <summary>🏅 통과한 곡 ${passed.length}곡</summary>
+      <ul class="log-list">${passed.map((x) => `<li><span>${esc(x.title)}${x.book ? ` · ${esc(x.book)}` : ""}</span><span>${x.passedAt ? fmtMD(new Date(x.passedAt)) : ""}${parent ? ` <button type="button" class="link-btn" data-action="edit-piece" data-id="${esc(x.id)}">수정</button>` : ""}</span></li>`).join("")}</ul>
+    </details>` : ""}`);
+}
+async function pianoStep(id, delta) {
+  const x = data.piano?.[id];
+  if (!x) return;
+  const k = dateKey();
+  const before = pianoCount(id);
+  const after = Math.max(0, before + delta);
+  const tgt = pieceTarget(x);
+  const stars = Number(x.stars) || 2;
+  const patch = { [`daily/${k}/piano/${id}`]: after || null };
+  if (before < tgt && after >= tgt) patch[`starsLog/${k}_p_${id}`] = { amount: stars, reason: `🎹 ${x.title}`, date: k, ts: Date.now() };
+  if (before >= tgt && after < tgt) patch[`starsLog/${k}_p_${id}`] = null;
+  await store.update("", patch);
+  if (before < tgt && after >= tgt) {
+    toast(`🎹 오늘 연습 끝! ⭐ ${stars}개`);
+    confetti(["🎵", "🎶", "⭐", "🎹"]);
+  }
+}
+function pieceForm(x = {}) {
+  openForm({
+    title: x.id ? "연습곡 수정" : "새 연습곡",
+    fields: [
+      { name: "title", label: "곡 이름", type: "text", value: x.title, required: true, placeholder: "예: 엘리제를 위하여" },
+      { name: "book", label: "교재", type: "text", value: x.book, placeholder: "예: 체르니 100 / 바이엘 3", half: true },
+      { name: "target", label: "하루 목표(번)", type: "number", value: x.target ?? 5, min: 1, max: 30, half: true },
+      { name: "stars", label: "목표 달성 별", type: "number", value: x.stars ?? 2, min: 1, max: 10, half: true },
+      { name: "status", label: "상태", type: "select", value: x.status || "practice", options: [{ value: "practice", label: "연습 중" }, { value: "passed", label: "통과" }], half: true },
+      { name: "note", label: "선생님 메모", type: "text", value: x.note, placeholder: "예: 왼손 천천히, 셋째 줄 박자 주의" }
+    ],
+    onSubmit: (v) => {
+      const id = x.id || newId();
+      const rec = { ...v, target: Number(v.target) || 5, stars: Number(v.stars) || 2, startedAt: x.startedAt || Date.now() };
+      if (v.status === "passed") rec.passedAt = x.passedAt || Date.now();
+      store.set(`piano/${id}`, rec);
+      toast("저장했어요");
+    },
+    onDelete: x.id ? () => store.remove(`piano/${x.id}`) : null
+  });
+}
+
 // =============================================================
 //  전체 그리기
 // =============================================================
@@ -701,6 +787,7 @@ function renderAll() {
   renderHero();
   renderSchedule();
   renderStudy();
+  renderPiano();
   renderStars();
   renderShop();
   renderDday();
@@ -893,6 +980,7 @@ function openSettings() {
 // =============================================================
 const CARDS = [
   { id: "sec-study", label: "📚 오늘 공부할 것" },
+  { id: "sec-piano", label: "🎹 피아노 연습곡" },
   { id: "sec-stars", label: "🌟 별 스티커판" },
   { id: "sec-shop", label: "🎁 보상 상점" },
   { id: "sec-dday", label: "🎂 가족 행사 D-Day" },
@@ -1112,7 +1200,18 @@ const actions = {
   "del-mail": (el) => { store.remove(`mailbox/${el.dataset.id}`); toast("메모를 지웠어요"); },
   "mic-music": (el) => micInto("music", el),
   "fav-add": () => favForm(),
-  "fav-edit": (el) => favForm({ id: el.dataset.id, ...data.music?.favorites?.[el.dataset.id] })
+  "fav-edit": (el) => favForm({ id: el.dataset.id, ...data.music?.favorites?.[el.dataset.id] }),
+  "add-piece": () => pieceForm(),
+  "edit-piece": (el) => pieceForm({ id: el.dataset.id, ...data.piano?.[el.dataset.id] }),
+  "piano-plus": (el) => pianoStep(el.dataset.id, 1),
+  "piano-minus": (el) => pianoStep(el.dataset.id, -1),
+  "pass-piece": (el) => {
+    const x = data.piano?.[el.dataset.id];
+    if (!x) return;
+    store.update(`piano/${el.dataset.id}`, { status: "passed", passedAt: Date.now() });
+    toast(`🏅 ${x.title} 통과 축하해요!`);
+    confetti(["🏅", "🎉", "🎹", "⭐"]);
+  }
 };
 
 function setupEvents() {

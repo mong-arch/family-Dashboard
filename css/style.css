@@ -375,3 +375,19 @@ textarea { resize: vertical; }
 .layout-show input { width: 20px; height: 20px; accent-color: var(--coral); }
 .mini-btn:disabled { opacity: .35; cursor: default; }
 [hidden] { display: none !important; }
+
+/* ---------- 피아노 연습곡 ---------- */
+.piece-list { display: flex; flex-direction: column; gap: 10px; }
+.piece { background: #fff; border: 2px solid var(--line); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.piece.done { border-color: var(--mint-deep); background: #F6FCF9; }
+.piece-head { display: flex; align-items: center; gap: 6px; }
+.piece-title-wrap { flex: 1; min-width: 0; }
+.piece-title { font-family: var(--font-title); font-size: 19px; }
+.piece-meta { font-size: 13px; color: var(--ink-soft); }
+.piece-note { font-size: 14px; background: var(--lemon); border-radius: 10px; padding: 6px 10px; }
+.notes { display: flex; flex-wrap: wrap; gap: 4px; }
+.note { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #F6EFE9; color: #B9A99F; font-size: 16px; }
+.note.on { background: var(--peach); animation: pop .3s ease; }
+.piece-actions { display: flex; gap: 8px; align-items: center; }
+.piece-tap { flex: 1; min-height: 52px; font-size: 18px; }
+.passed summary { cursor: pointer; font-family: var(--font-title); padding: 6px 0; min-height: 40px; display: flex; align-items: center; }
