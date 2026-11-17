@@ -1081,7 +1081,12 @@ async function start() {
   setupDialog();
   setupEvents();
   renderTop();
-  if (!device.get("setupDone", false) || (hasFirebaseConfig() && !device.get("familyId", ""))) {
+  const savedFid = device.get("familyId", "");
+  if (hasFirebaseConfig() && !/^[A-Za-z0-9_-]{8,60}$/.test(savedFid)) {
+    device.set("familyId", "");
+    device.set("setupDone", false);
+  }
+  if (!device.get("setupDone", false)) {
     await setupFamily(false);
   }
   const fid = hasFirebaseConfig() ? device.get("familyId", "") : "demo";
