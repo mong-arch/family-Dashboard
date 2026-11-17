@@ -364,3 +364,14 @@ textarea { resize: vertical; }
 @media (display-mode: standalone) {
   .footer { padding-bottom: calc(30px + env(safe-area-inset-bottom)); }
 }
+
+/* ---------- 화면 꾸미기 ---------- */
+.layout-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.layout-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 14px; border: 1px solid var(--line); background: #FFFDFB; }
+.layout-row.off { opacity: .55; }
+.layout-num { width: 24px; text-align: center; font-family: var(--font-title); color: var(--ink-soft); }
+.layout-label { flex: 1; min-width: 0; font-size: 15px; color: var(--ink); }
+.layout-show { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-soft); white-space: nowrap; min-height: 40px; }
+.layout-show input { width: 20px; height: 20px; accent-color: var(--coral); }
+.mini-btn:disabled { opacity: .35; cursor: default; }
+[hidden] { display: none !important; }

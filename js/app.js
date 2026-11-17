@@ -696,6 +696,7 @@ function favForm(f = {}) {
 //  전체 그리기
 // =============================================================
 function renderAll() {
+  applyLayout();
   renderTop();
   renderHero();
   renderSchedule();
@@ -742,6 +743,8 @@ function openForm({ title, fields, onSubmit, onDelete = null, submitLabel = "저
   const dlg = $("#form-dialog");
   formState = { fields, onSubmit, onDelete, locked };
   $("#form-dialog-title").textContent = title;
+  $("#form-dialog-fields").onclick = null;
+  $("#form-dialog-fields").onchange = null;
   $("#form-dialog-fields").innerHTML = fields.map(fieldHtml).join("") + (note ? `<p class="hint full">${esc(note)}</p>` : "");
   $("#form-dialog-submit").textContent = submitLabel;
   const del = $("#form-dialog-delete");
@@ -875,6 +878,110 @@ function openSettings() {
     extra.addEventListener("click", () => { $("#form-dialog").close(); setupFamily(true); });
     $("#form-dialog-fields").appendChild(extra);
   }
+  if (isParent()) {
+    const lay = document.createElement("button");
+    lay.type = "button";
+    lay.className = "btn small full";
+    lay.textContent = "🧩 화면 카드 순서·숨기기";
+    lay.addEventListener("click", () => { $("#form-dialog").close(); openLayoutEditor(); });
+    $("#form-dialog-fields").prepend(lay);
+  }
+}
+
+// =============================================================
+//  화면 꾸미기 (카드 순서·숨기기, 이 기기에만 저장)
+// =============================================================
+const CARDS = [
+  { id: "sec-study", label: "📚 오늘 공부할 것" },
+  { id: "sec-stars", label: "🌟 별 스티커판" },
+  { id: "sec-shop", label: "🎁 보상 상점" },
+  { id: "sec-dday", label: "🎂 가족 행사 D-Day" },
+  { id: "sec-meal", label: "🍚 저녁 메뉴" },
+  { id: "sec-weekend", label: "🧺 주말 계획" },
+  { id: "sec-status", label: "🙋 엄마·아빠 상태" },
+  { id: "sec-mail", label: "💌 가족 우체통" },
+  { id: "sec-music", label: "🎵 음악 듣기" },
+  { id: "sec-schedule", label: "📅 학원·방과후 스케줄" }
+];
+const NAV_OF = { "sec-meal": ["sec-meal"], "sec-weekend": ["sec-meal"] };
+function getLayout() {
+  const saved = device.get("layout", null) || {};
+  const ids = CARDS.map((c) => c.id);
+  const order = (saved.order || []).filter((id) => ids.includes(id));
+  ids.forEach((id) => { if (!order.includes(id)) order.push(id); });
+  return { order, hidden: (saved.hidden || []).filter((id) => ids.includes(id)) };
+}
+function applyLayout() {
+  const { order, hidden } = getLayout();
+  order.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.order = String(i + 1);
+    el.hidden = hidden.includes(id);
+  });
+  const hero = document.getElementById("sec-hero");
+  if (hero) hero.style.order = "0";
+  document.querySelectorAll(".section-nav a").forEach((a) => {
+    const target = a.getAttribute("href").slice(1);
+    const idx = order.indexOf(target);
+    a.style.order = String(idx < 0 ? 99 : idx);
+    const shown = order.some((id) => !hidden.includes(id) && (NAV_OF[id] || [id]).includes(target));
+    a.hidden = !shown;
+  });
+}
+function openLayoutEditor() {
+  let { order, hidden } = getLayout();
+  const label = (id) => CARDS.find((c) => c.id === id)?.label || id;
+  const draw = () => {
+    $("#form-dialog-fields").innerHTML = `
+      <p class="hint full">↑↓로 순서를 바꾸고, 안 쓰는 카드는 '보이기'를 끄세요. 이 기기에만 적용돼요. (맨 위 '오늘 한눈에'는 항상 처음에 보여요)</p>
+      <ol class="layout-list full">
+        ${order.map((id, i) => `<li class="layout-row ${hidden.includes(id) ? "off" : ""}">
+          <span class="layout-num">${i + 1}</span>
+          <span class="layout-label">${esc(label(id))}</span>
+          <label class="layout-show"><input type="checkbox" data-lay-show="${id}" ${hidden.includes(id) ? "" : "checked"}> 보이기</label>
+          <button type="button" class="mini-btn" data-lay-move="up" data-lay-id="${id}" ${i === 0 ? "disabled" : ""} aria-label="${esc(label(id))} 위로">↑</button>
+          <button type="button" class="mini-btn" data-lay-move="down" data-lay-id="${id}" ${i === order.length - 1 ? "disabled" : ""} aria-label="${esc(label(id))} 아래로">↓</button>
+        </li>`).join("")}
+      </ol>
+      <button type="button" class="link-btn full" data-lay-reset>처음 순서로 되돌리기</button>`;
+  };
+  openForm({
+    title: "🧩 화면 꾸미기",
+    fields: [],
+    onSubmit: () => {
+      device.set("layout", { order, hidden });
+      applyLayout();
+      toast("화면 배치를 저장했어요");
+    }
+  });
+  draw();
+  const box = $("#form-dialog-fields");
+  const handler = (e) => {
+    const mv = e.target.closest("[data-lay-move]");
+    if (mv) {
+      const i = order.indexOf(mv.dataset.layId);
+      const j = mv.dataset.layMove === "up" ? i - 1 : i + 1;
+      if (j < 0 || j >= order.length) return;
+      [order[i], order[j]] = [order[j], order[i]];
+      draw();
+      box.querySelector(`[data-lay-id="${mv.dataset.layId}"][data-lay-move="${mv.dataset.layMove}"]`)?.focus();
+      return;
+    }
+    if (e.target.closest("[data-lay-reset]")) {
+      order = CARDS.map((c) => c.id);
+      hidden = [];
+      draw();
+    }
+  };
+  const changer = (e) => {
+    const id = e.target.dataset?.layShow;
+    if (!id) return;
+    hidden = e.target.checked ? hidden.filter((x) => x !== id) : [...hidden, id];
+    draw();
+  };
+  box.onclick = handler;
+  box.onchange = changer;
 }
 
 function suggestCode() {
