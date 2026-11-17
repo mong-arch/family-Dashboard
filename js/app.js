@@ -202,9 +202,24 @@ function renderHero() {
       <li><span class="tile-label">다음 일정</span><span class="tile-value">${next ? `${esc(next.start)} ${esc(next.name)}` : "오늘 일정 끝!"}</span>
         ${next ? `<span class="tile-sub">데려다주기 ${esc(next.dropoff)} · 데리러가기 ${esc(next.pickup)}</span>` : ""}</li>
       <li><span class="tile-label">오늘 저녁</span><span class="tile-value">${dinner ? esc(dinner) : "아직 몰라요"}</span></li>
+      ${heroWeatherTile()}
       <li><span class="tile-label">다가오는 날</span><span class="tile-value">${ev ? `${esc(ev.emoji || "📌")} ${esc(ev.title)}` : "없음"}</span>
         ${ev ? `<span class="tile-sub">${ddayLabel(ev.diff)}</span>` : ""}</li>
     </ul>`);
+}
+
+function heroWeatherTile() {
+  if (!wx) wx = cachedWeather(wxPlace());
+  if (!wx) return `<li><span class="tile-label">날씨</span><span class="tile-value">불러오는 중…</span></li>`;
+  const [emo, label] = codeInfo(wx.now.code);
+  const today = wx.days.find((d) => d.date === dateKey()) || wx.days[0];
+  const g = [pmGrade("pm10", wx.pm10), pmGrade("pm25", wx.pm25)].filter(Boolean).sort((a, b) => b.level - a.level)[0];
+  const sub = [
+    today ? `${Math.round(today.min)}° / ${Math.round(today.max)}°` : "",
+    today && today.rain >= 50 ? `☂️ 비 ${today.rain}%` : "",
+    g ? `먼지 ${g.label}` : ""
+  ].filter(Boolean).join(" · ");
+  return `<li class="tile-link"><a href="#sec-weather" aria-label="날씨 자세히 보기"><span class="tile-label">${esc(wxPlace().name)} 날씨</span><span class="tile-value">${emo} ${Math.round(wx.now.temp)}° ${label}</span>${sub ? `<span class="tile-sub">${sub}</span>` : ""}</a></li>`;
 }
 
 // ---------------- 1. 학원·방과후 스케줄 ----------------
@@ -815,6 +830,7 @@ async function loadWeather(force = false) {
   }
   renderWeather();
   renderPrep();
+  renderHero();
 }
 function renderWeather() {
   const place = wxPlace();
