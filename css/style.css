@@ -351,7 +351,8 @@ textarea { resize: vertical; }
   .topbar-inner { padding: 10px 14px 4px; }
   .brand h1 { font-size: 21px; }
   .brand-mark { font-size: 28px; }
-  .sync-badge { display: none; }
+  .sync-badge { font-size: 12px; padding: 4px 8px; }
+  .topbar-actions { flex-wrap: wrap; }
   .layout { padding: 14px; gap: 14px; }
   .card { padding: 16px; }
   .hero-main { flex-direction: column; text-align: center; }
