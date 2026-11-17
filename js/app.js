@@ -200,7 +200,7 @@ function renderHero() {
     </div>
     <ul class="hero-tiles">
       <li><span class="tile-label">다음 일정</span><span class="tile-value">${next ? `${esc(next.start)} ${esc(next.name)}` : "오늘 일정 끝!"}</span>
-        ${next ? `<span class="tile-sub">데려다주기 ${esc(next.dropoff)} · 데리러가기 ${esc(next.pickup)}</span>` : ""}</li>
+        ${next && next.place ? `<span class="tile-sub">📍 ${esc(next.place)}</span>` : ""}</li>
       <li><span class="tile-label">오늘 저녁</span><span class="tile-value">${dinner ? esc(dinner) : "아직 몰라요"}</span></li>
       ${heroWeatherTile()}
       <li><span class="tile-label">다가오는 날</span><span class="tile-value">${ev ? `${esc(ev.emoji || "📌")} ${esc(ev.title)}` : "없음"}</span>
@@ -240,7 +240,6 @@ function renderSchedule() {
       <div class="ti-body">
         <p class="ti-name">${esc(a.name)} <span class="tag">${esc(a.type || "학원")}</span> ${badge ? `<span class="badge ${st}">${badge}</span>` : ""}</p>
         ${a.place ? `<p class="ti-place">📍 ${esc(a.place)}</p>` : ""}
-        <p class="ti-pick"><span>🚶 데려다주기 <b>${esc(a.dropoff || "-")}</b></span><span>🏠 데리러가기 <b>${esc(a.pickup || "-")}</b></span></p>
       </div>
       ${isParent() ? `<button type="button" class="mini-btn" data-action="edit-academy" data-id="${esc(a.id)}" aria-label="${esc(a.name)} 수정">✏️</button>` : ""}
     </li>`;
@@ -290,8 +289,6 @@ function academyForm(a = {}) {
       { name: "days", label: "요일", type: "days", value: (a.days || []).map(Number) },
       { name: "start", label: "시작", type: "time", value: a.start || "15:00", required: true, half: true },
       { name: "end", label: "끝", type: "time", value: a.end || "16:00", required: true, half: true },
-      { name: "dropoff", label: "데려다주기", type: "select", value: a.dropoff || "엄마", options: PEOPLE, half: true },
-      { name: "pickup", label: "데리러가기", type: "select", value: a.pickup || "아빠", options: PEOPLE, half: true },
       { name: "place", label: "장소", type: "text", value: a.place, placeholder: "예: OO피아노" },
       { name: "supplies", label: "준비물 (쉼표로 구분)", type: "text", value: a.supplies, placeholder: "예: 리코더, 악보 파일, 실내화" },
       { name: "fee", label: "월 학원비(원)", type: "number", value: a.fee ?? "", min: 0, step: 1000 },

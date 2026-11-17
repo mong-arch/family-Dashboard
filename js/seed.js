@@ -10,10 +10,10 @@ export function seedData(childName = "우리 아들") {
   return {
     settings: { childName, createdAt: Date.now() },
     academies: {
-      a1: { name: "태권도", type: "학원", days: [0, 2, 4], start: "14:00", end: "15:00", dropoff: "셔틀", pickup: "셔틀", fee: 150000, place: "OO태권도", color: "peach" },
-      a2: { name: "피아노", type: "학원", days: [1, 3], start: "15:30", end: "16:20", dropoff: "엄마", pickup: "아빠", fee: 130000, place: "OO피아노", color: "lavender" },
-      a3: { name: "방과후 로봇과학", type: "방과후", days: [1], start: "13:10", end: "14:30", dropoff: "스스로", pickup: "할머니", fee: 45000, place: "학교 과학실", color: "mint" },
-      a4: { name: "수영", type: "운동", days: [5], start: "10:00", end: "11:00", dropoff: "아빠", pickup: "아빠", fee: 90000, place: "구민체육센터", color: "sky" }
+      a1: { name: "태권도", type: "학원", days: [0, 2, 4], start: "14:00", end: "15:00", fee: 150000, place: "OO태권도", color: "peach" },
+      a2: { name: "피아노", type: "학원", days: [1, 3], start: "15:30", end: "16:20", fee: 130000, place: "OO피아노", color: "lavender" },
+      a3: { name: "방과후 로봇과학", type: "방과후", days: [1], start: "13:10", end: "14:30", fee: 45000, place: "학교 과학실", color: "mint" },
+      a4: { name: "수영", type: "운동", days: [5], start: "10:00", end: "11:00", fee: 90000, place: "구민체육센터", color: "sky" }
     },
     routines: {
       r1: { title: "책 20분 읽기", emoji: "📖", stars: 1, order: 1 },
