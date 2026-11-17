@@ -189,8 +189,6 @@ function renderHero() {
   const name = data.settings?.childName || "우리 아들";
   const p = todayProgress();
   const { balance } = starTotals();
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-  const next = todayAcademies().find((a) => toMin(a.end) >= nowMin);
   const ev = [...upcomingEvents(), ...monthCalendarEvents().map((c) => ({ ...c, emoji: "📆" }))].sort((a, b) => a.diff - b.diff)[0];
   const ring = `conic-gradient(var(--coral) ${p.pct * 3.6}deg, #FFFFFF 0deg)`;
   paint("sec-hero", `
@@ -204,14 +202,22 @@ function renderHero() {
       </div>
     </div>
     <ul class="hero-tiles">
-      <li><span class="tile-label">다음 일정</span><span class="tile-value">${next ? `${esc(next.start)} ${esc(next.name)}` : "오늘 일정 끝!"}</span>
-        ${next && next.place ? `<span class="tile-sub">📍 ${esc(next.place)}</span>` : ""}</li>
+      ${heroMailTile()}
       ${heroWeatherTile()}
       <li><span class="tile-label">다가오는 날</span><span class="tile-value">${ev ? `${esc(ev.emoji || "📌")} ${esc(ev.title)}` : "없음"}</span>
         ${ev ? `<span class="tile-sub">${ddayLabel(ev.diff)}</span>` : ""}</li>
     </ul>`);
 }
 
+function heroMailTile() {
+  const msgs = list(data.mailbox).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const last = msgs[0];
+  const todayN = msgs.filter((m) => m.ts && dateKey(new Date(m.ts)) === dateKey()).length;
+  if (!last) return `<li class="tile-link"><a href="#sec-mail"><span class="tile-label">💌 가족 우체통</span><span class="tile-value">메모 남기기</span></a></li>`;
+  const r = ROLES[last.from] || ROLES.tablet;
+  const text = String(last.text || "");
+  return `<li class="tile-link tile-mail"><a href="#sec-mail" aria-label="가족 우체통 열기"><span class="tile-label">💌 가족 우체통${todayN ? ` · 오늘 ${todayN}개` : ""}</span><span class="tile-value tile-clamp">${r.emoji} ${esc(text.length > 40 ? `${text.slice(0, 40)}…` : text)}</span><span class="tile-sub">${r.label} · ${timeAgo(last.ts)}</span></a></li>`;
+}
 function heroWeatherTile() {
   if (!wx) wx = cachedWeather(wxPlace());
   if (!wx) return `<li><span class="tile-label">날씨</span><span class="tile-value">불러오는 중…</span></li>`;
