@@ -407,3 +407,17 @@ textarea { resize: vertical; }
 .confirm-line { font-size: 15px; }
 .confirm-line.ok { color: #2F7D57; }
 .prep-done-btn { min-height: 52px; font-size: 18px; }
+
+/* ---------- 날씨 ---------- */
+.wx-now { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.wx-emoji { font-size: 56px; line-height: 1; }
+.wx-temp { font-family: var(--font-title); font-size: 44px; line-height: 1; }
+.wx-label { font-size: 15px; color: var(--ink-soft); }
+.wx-range { margin-left: auto; display: flex; flex-direction: column; gap: 2px; font-size: 14px; text-align: right; }
+.wx-outfit { background: rgba(255,255,255,.85); border-radius: 14px; padding: 10px 12px; font-size: 15px; }
+.pm-row { display: flex; gap: 8px; }
+.pm { flex: 1; background: #fff; border-radius: 14px; padding: 8px 12px; display: flex; flex-direction: column; border: 2px solid var(--line); }
+.pm strong { font-family: var(--font-title); font-weight: 400; font-size: 18px; }
+.pm-0 { border-color: #9CC3F5; } .pm-1 { border-color: #8FD3B2; } .pm-2 { border-color: #F2B36B; background: #FFF6EA; } .pm-3 { border-color: #E98A8A; background: #FFF0F0; }
+.wx-tips { display: flex; flex-direction: column; gap: 6px; }
+.wx-tips li { background: var(--lemon); border-radius: 12px; padding: 8px 12px; font-size: 15px; }

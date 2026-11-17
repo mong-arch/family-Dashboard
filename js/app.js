@@ -1,6 +1,7 @@
 import { createStore, newId, hasFirebaseConfig } from "./store.js";
 import { seedData } from "./seed.js";
 import { listen, speak, speechSupported, ttsSupported, stopSpeaking } from "./speech.js";
+import { getWeather, cachedWeather, searchPlace, codeInfo, pmGrade, outfit, DEFAULT_PLACE } from "./weather.js";
 import { gcalConfigured, getToken, listCalendars, fetchEvents, preloadGoogle } from "./gcal.js";
 
 // =============================================================
@@ -801,6 +802,113 @@ function favForm(f = {}) {
   });
 }
 
+// ---------------- 날씨 ----------------
+let wx = null;
+let wxErr = "";
+const wxPlace = () => data.settings?.weather?.lat ? data.settings.weather : DEFAULT_PLACE;
+async function loadWeather(force = false) {
+  try {
+    wx = await getWeather(wxPlace(), { force });
+    wxErr = "";
+  } catch (e) {
+    wxErr = e.message || "날씨를 불러오지 못했어요";
+  }
+  renderWeather();
+  renderPrep();
+}
+function renderWeather() {
+  const place = wxPlace();
+  if (!wx) wx = cachedWeather(place);
+  const parent = isParent();
+  if (!wx) {
+    paint("sec-weather", `<div class="card-head"><h2 id="weather-title">🌤️ 날씨</h2></div>
+      <p class="hint">${wxErr ? esc(wxErr) : "날씨를 불러오는 중…"}</p>
+      ${wxErr ? `<button type="button" class="btn small" data-action="wx-refresh">다시 시도</button>` : ""}`);
+    return;
+  }
+  const [emo, label] = codeInfo(wx.now.code);
+  const today = wx.days.find((d) => d.date === dateKey()) || wx.days[0];
+  const tmr = wx.days.find((d) => d.date === dateKey(addDays(startOfDay(), 1)));
+  const g10 = pmGrade("pm10", wx.pm10);
+  const g25 = pmGrade("pm25", wx.pm25);
+  const tips = [];
+  if (today && today.rain >= 50) tips.push(`☂️ 오늘 비 올 확률 ${today.rain}% · 우산 챙기기`);
+  if ((g10 && g10.level >= 2) || (g25 && g25.level >= 2)) tips.push("😷 미세먼지 나쁨 · 마스크 쓰고 바깥놀이 줄이기");
+  if (today && today.uv >= 6) tips.push("🧴 자외선 강함 · 선크림·모자");
+  const pm = (name, v, g) => g ? `<li class="pm pm-${g.level}"><span class="tile-label">${name}</span><strong>${g.emoji} ${g.label}</strong><span class="tile-sub">${Math.round(v)}㎍/㎥</span></li>` : "";
+  paint("sec-weather", `
+    <div class="card-head">
+      <h2 id="weather-title">🌤️ ${esc(place.name)} 날씨</h2>
+      <button type="button" class="mini-btn" data-action="wx-refresh" aria-label="날씨 새로고침">🔄</button>
+    </div>
+    <div class="wx-now">
+      <span class="wx-emoji" aria-hidden="true">${emo}</span>
+      <div>
+        <p class="wx-temp">${Math.round(wx.now.temp)}°</p>
+        <p class="wx-label">${label} · 체감 ${Math.round(wx.now.feels)}°</p>
+      </div>
+      ${today ? `<div class="wx-range"><span>최고 <b>${Math.round(today.max)}°</b></span><span>최저 <b>${Math.round(today.min)}°</b></span>${today.rain != null ? `<span>☔ ${today.rain}%</span>` : ""}</div>` : ""}
+    </div>
+    ${today ? `<p class="wx-outfit">👕 오늘 옷차림: <b>${outfit(today.min, today.max)}</b></p>` : ""}
+    <ul class="pm-row">${pm("미세먼지", wx.pm10, g10)}${pm("초미세먼지", wx.pm25, g25)}</ul>
+    ${tips.length ? `<ul class="wx-tips">${tips.map((t) => `<li>${t}</li>`).join("")}</ul>` : ""}
+    ${tmr ? `<p class="hint">내일 ${codeInfo(tmr.code)[0]} ${codeInfo(tmr.code)[1]} · ${Math.round(tmr.min)}° / ${Math.round(tmr.max)}°${tmr.rain != null ? ` · 비 ${tmr.rain}%` : ""}</p>` : ""}
+    <p class="hint">${timeAgo(wx.at)} 업데이트${parent ? ` · <button type="button" class="link-btn" data-action="wx-place">지역 바꾸기</button>` : ""}</p>`);
+}
+function weatherPrepItems(d) {
+  if (!wx) return [];
+  const k = dateKey(d);
+  const day = wx.days.find((x) => x.date === k);
+  const out = [];
+  if (day && day.rain >= 50) out.push({ key: "w_umbrella", title: `우산 (비 올 확률 ${day.rain}%)`, emoji: "☂️", tag: "날씨" });
+  if (k === dateKey()) {
+    const bad = (pmGrade("pm10", wx.pm10)?.level ?? 0) >= 2 || (pmGrade("pm25", wx.pm25)?.level ?? 0) >= 2;
+    if (bad) out.push({ key: "w_mask", title: "마스크 (미세먼지 나쁨)", emoji: "😷", tag: "날씨" });
+  }
+  return out;
+}
+function placeForm() {
+  openForm({
+    title: "📍 날씨 지역 바꾸기",
+    fields: [{ name: "q", label: "동네·도시 이름", type: "text", value: "", required: true, placeholder: "예: 성남, 수원, 분당, Seoul" }],
+    note: "이름으로 못 찾으면 '지금 위치로' 버튼을 눌러 주세요. 지역은 모든 기기에 함께 적용돼요.",
+    submitLabel: "찾기",
+    onSubmit: async (v) => {
+      let res = [];
+      try { res = await searchPlace(v.q); } catch (e) { toast(e.message); return false; }
+      if (!res.length) { toast("못 찾았어요. 다른 이름이나 영어로 해 볼까요?"); return false; }
+      setTimeout(() => openForm({
+        title: "📍 지역 고르기",
+        fields: [{ name: "i", label: "검색 결과", type: "select", value: "0", options: res.map((r, i) => ({ value: String(i), label: `${r.name} · ${r.detail}` })) },
+          { name: "label", label: "화면에 보일 이름", type: "text", value: res[0].name }],
+        onSubmit: (w) => {
+          const r = res[Number(w.i)];
+          store.set("settings/weather", { name: w.label || r.name, lat: r.lat, lon: r.lon });
+          wx = null;
+          setTimeout(() => loadWeather(true), 300);
+          toast("날씨 지역을 바꿨어요");
+        }
+      }), 50);
+    }
+  });
+  if ("geolocation" in navigator) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn small full";
+    b.textContent = "📍 지금 위치로";
+    b.addEventListener("click", () => {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        store.set("settings/weather", { name: "우리 동네", lat: Math.round(pos.coords.latitude * 100) / 100, lon: Math.round(pos.coords.longitude * 100) / 100 });
+        $("#form-dialog").close();
+        wx = null;
+        setTimeout(() => loadWeather(true), 300);
+        toast("지금 위치로 맞췄어요");
+      }, () => toast("위치 권한을 허용해 주세요"), { timeout: 10000 });
+    });
+    $("#form-dialog-fields").appendChild(b);
+  }
+}
+
 // ---------------- 준비물 챙기기 ----------------
 let prepView = null; // "today" | "tomorrow"
 const prepDayOf = () => {
@@ -821,6 +929,8 @@ function prepItemsFor(d) {
     school.push({ key: `o_${o.id}`, title: o.title, emoji: o.emoji || "📌", tag: "이날만", edit: { kind: "once", id: o.id } });
   });
   if (school.length) groups.push({ name: "🏫 학교·공통", items: school });
+  const wxItems = weatherPrepItems(d);
+  if (wxItems.length) groups.unshift({ name: "🌦️ 날씨 때문에", items: wxItems });
   todayAcademies(idx).forEach((a) => {
     const sup = String(a.supplies || "").split(",").map((x) => x.trim()).filter(Boolean);
     if (sup.length) groups.push({ name: `${a.type === "방과후" ? "🧪" : "🎵"} ${a.name} (${a.start})`, items: sup.map((t, i) => ({ key: `a_${a.id}_${i}`, title: t, emoji: "🧩", tag: a.type || "학원", academy: a.id })) });
@@ -997,6 +1107,7 @@ function renderAll() {
   renderTop();
   renderHero();
   renderSchedule();
+  renderWeather();
   renderPrep();
   renderStudy();
   renderPiano();
@@ -1195,6 +1306,7 @@ function openSettings() {
 //  화면 꾸미기 (카드 순서·숨기기, 이 기기에만 저장)
 // =============================================================
 const CARDS = [
+  { id: "sec-weather", label: "🌤️ 날씨" },
   { id: "sec-prep", label: "🎒 챙겨야 할 것" },
   { id: "sec-study", label: "📚 오늘 공부할 것" },
   { id: "sec-piano", label: "🎹 피아노 연습곡" },
@@ -1418,6 +1530,8 @@ const actions = {
   "mic-music": (el) => micInto("music", el),
   "fav-add": () => favForm(),
   "fav-edit": (el) => favForm({ id: el.dataset.id, ...data.music?.favorites?.[el.dataset.id] }),
+  "wx-refresh": () => { toast("날씨를 새로 불러와요"); loadWeather(true); },
+  "wx-place": () => placeForm(),
   "prep-view": (el) => { prepView = el.dataset.view; renderPrep(); },
   "prep-toggle": (el) => {
     const k = el.dataset.day;
@@ -1581,6 +1695,8 @@ async function start() {
     checkNewMail();
   });
   if (gcalConfigured()) preloadGoogle();
+  setTimeout(() => loadWeather(false), 800);
+  setInterval(() => loadWeather(false), 30 * 60 * 1000);
   setInterval(() => { renderTop(); renderHero(); renderSchedule(); renderDday(); renderStatus(); }, 60000);
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
