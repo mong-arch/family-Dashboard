@@ -1,6 +1,6 @@
 // 서비스 워커: 앱 화면 파일을 저장해 두고, 인터넷이 느리거나 끊겨도 열리게 합니다.
 // 파일을 고친 뒤 배포할 때는 아래 VERSION 숫자를 올려 주세요.
-const VERSION = "v7";
+const VERSION = "v8";
 const CACHE = `family-dashboard-${VERSION}`;
 const SHELL = [
   "./",
@@ -38,7 +38,7 @@ self.addEventListener("fetch", (event) => {
   // 같은 사이트 파일: 네트워크 먼저(최신 반영), 실패하면 저장본
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-cache" })
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy));
