@@ -10,11 +10,11 @@
 // =============================================================
 
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAclZyYa1mjp-SR0RyK_rb9iEfwPuk75UU",
+  authDomain: "we-family-dashboard.firebaseapp.com",
+  databaseURL: "https://we-family-dashboard-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "we-family-dashboard",
+  storageBucket: "we-family-dashboard.firebasestorage.app",
+  messagingSenderId: "964076069873",
+  appId: "1:964076069873:web:16292183ebe190b18f1a50"
 };
