@@ -5,4 +5,4 @@
 //  (예: 1234567890-abcdefg.apps.googleusercontent.com)
 //  비어 있으면 D-Day 카드의 '구글 캘린더 가져오기' 버튼이 안내만 보여줘요.
 // =============================================================
-export const GOOGLE_CLIENT_ID = "";
+export const GOOGLE_CLIENT_ID = "964076069873-pnp6kuhle2vjf3suho583h79d5nblg08.apps.googleusercontent.com";
