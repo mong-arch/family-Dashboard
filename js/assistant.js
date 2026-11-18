@@ -17,7 +17,7 @@ async function ensureAI() {
     import(`${FB_BASE}/firebase-app-check.js`)
   ]);
   try {
-    acMod.initializeAppCheck(app, { provider: new acMod.ReCaptchaV3Provider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+    acMod.initializeAppCheck(app, { provider: new acMod.ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
   } catch (e) {
     if (!/already/i.test(String(e?.message))) console.warn("App Check", e);
   }

@@ -154,10 +154,10 @@ D-Day 카드에 구글 캘린더의 **이번 달 일정**(예: 29일 공연 예�
 🎤 버튼(부모 모드: 'AI 비서', 아이 모드: '별콩이랑 말하기')을 누르고 말하면 Gemini가 대시보드를 보고 대답하고, "우유 사야 해", "아빠한테 늦는다고 메모 남겨 줘", "책 다 읽었어" 같은 말로 대시보드를 직접 고쳐요. 아이 모드에서는 별콩이 말투로 짧게 대답하고, 학원비 등 돈 정보는 AI에 넘기지 않아요.
 
 1. **Firebase 콘솔 → AI 서비스 → AI Logic → 시작하기** → **Gemini Developer API**(무료 등급)를 고르고 안내대로 사용 설정합니다.
-2. 안내 중 **App Check**(봇 막기) 설정이 나와요. 웹 앱에 **reCAPTCHA v3**를 고릅니다.
-   - [reCAPTCHA 관리 콘솔](https://www.google.com/recaptcha/admin/create)에서 새 사이트 등록 → 유형 **점수 기반(v3)** → 도메인 `mong-arch.github.io` → 제출
-   - 나오는 **비밀 키**는 Firebase App Check의 reCAPTCHA 칸에 넣고 저장
-   - **사이트 키**는 `js/ai-config.js`의 `RECAPTCHA_SITE_KEY = ""` 따옴표 안에 넣고 커밋
+2. **App Check**(봇 막기)를 **Fraud Defense(예전 reCAPTCHA Enterprise)**로 등록합니다. (일반 reCAPTCHA v3는 지원 종료)
+   - [Google Cloud 콘솔 → 보안 → Fraud Defense(reCAPTCHA)](https://console.cloud.google.com/security/recaptcha)에서 같은 프로젝트를 고르고 **키 만들기** → 플랫폼 **웹사이트** → 도메인 `mong-arch.github.io` → (체크박스 문제 사용 안 함) → 만들기
+   - 만들어진 **키 ID**를 Firebase 콘솔 **보안 → App Check → 앱 → family-web → Fraud Defense** 칸에 넣고 저장
+   - 같은 키 ID를 `js/ai-config.js`의 `RECAPTCHA_SITE_KEY = ""` 따옴표 안에도 넣고 커밋
 3. 사이트를 새로고침하고 🎤를 눌러 말해 보세요.
 
 > 무료 등급은 하루·분당 사용량 제한이 있어요. 가족이 쓰는 정도면 보통 충분하지만, 한도를 넘으면 "잠깐 쉬어야 해요"라고 나와요.
