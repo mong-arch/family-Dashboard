@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./css/style.css?v=23">
+  <link rel="stylesheet" href="./css/style.css?v=24">
 </head>
 <body>
   <a class="skip-link" href="#main">본문으로 건너뛰기</a>
@@ -55,6 +55,10 @@
   <main id="main" class="layout">
     <section id="sec-hero" class="card hero" aria-labelledby="hero-title"></section>
 
+    <section id="sec-kidhome" class="card kidhome" aria-labelledby="kidhome-title"></section>
+
+    <section id="sec-mission" class="card mission-card" aria-labelledby="mission-title"></section>
+
     <section id="sec-weather" class="card tint-sky" aria-labelledby="weather-title"></section>
 
     <section id="sec-prep" class="card tint-sky" aria-labelledby="prep-title"></section>
@@ -86,6 +90,14 @@
     <section id="sec-schedule" class="card span-2 tint-sky" aria-labelledby="schedule-title"></section>
   </main>
 
+  <nav class="kid-tabs" aria-label="아이 메뉴">
+    <a href="#sec-kidhome"><span aria-hidden="true">🏠</span>홈</a>
+    <a href="#sec-mission"><span aria-hidden="true">🚀</span>미션</a>
+    <a href="#sec-prep"><span aria-hidden="true">🎒</span>준비물</a>
+    <a href="#sec-shop"><span aria-hidden="true">🎁</span>상점</a>
+    <a href="#sec-mail"><span aria-hidden="true">💌</span>편지</a>
+  </nav>
+
   <footer class="footer">
     <p>우리 가족 대시보드 · 모든 기기에서 실시간으로 함께 써요</p>
   </footer>
@@ -107,6 +119,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="confetti" class="confetti" aria-hidden="true"></div>
 
-  <script type="module" src="./js/app.js?v=23"></script>
+  <script type="module" src="./js/app.js?v=24"></script>
 </body>
 </html>

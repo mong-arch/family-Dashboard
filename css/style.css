@@ -495,3 +495,98 @@ body.morning-on { overflow: hidden; }
 @keyframes petFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes petTwinkle { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 @keyframes petJump { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-18px) scale(1.05, .95); } 60% { transform: translateY(0) scale(.95, 1.05); } 100% { transform: translateY(0) scale(1); } }
+
+/* =============================================================
+   아이 모드 전용 화면
+   ============================================================= */
+.kidhome, .mission-card, .kid-tabs { display: none; }
+body.kid { background: linear-gradient(180deg, #DDF0FF 0%, #FFF4E8 38%, #FFF8F1 100%) fixed; }
+body.kid .kidhome, body.kid .mission-card { display: flex; }
+body.kid .kid-tabs { display: flex; }
+body.kid .section-nav, body.kid #sec-hero, body.kid #sec-study, body.kid #sec-piano, body.kid #sec-weather { display: none !important; }
+body.kid #sec-pet .pet-stage, body.kid #sec-pet .pet-info { display: none; }
+body.kid .layout { padding-bottom: 110px; }
+body.kid .footer { display: none; }
+body.kid .card-head h2 { font-size: 24px; }
+body.kid .check-label { font-size: 18px; }
+
+/* 아이 모드 카드 순서 */
+body.kid #sec-kidhome { order: -10 !important; grid-column: 1 / -1; }
+body.kid #sec-mission { order: -9 !important; grid-column: 1 / -1; }
+body.kid #sec-prep { order: -8 !important; }
+body.kid #sec-stars { order: -7 !important; }
+body.kid #sec-pet { order: -6 !important; }
+body.kid #sec-shop { order: -5 !important; }
+body.kid #sec-mail { order: -4 !important; }
+body.kid #sec-music { order: -3 !important; }
+body.kid #sec-dday { order: -2 !important; }
+
+/* 별콩이 홈 */
+.kidhome { position: relative; overflow: hidden; align-items: center; text-align: center; gap: 8px; padding: 18px 18px 20px;
+  background: linear-gradient(180deg, #CFE8FF 0%, #FFE9F1 65%, #FFF5D6 100%);
+  border: 3px solid #FFFFFF; }
+.kh-top { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.kh-date { font-size: 15px; background: rgba(255,255,255,.8); padding: 6px 12px; border-radius: 999px; }
+.kh-stars { font-family: var(--font-title); font-size: 26px; background: #fff; padding: 4px 16px; border-radius: 999px; border: 3px solid var(--lemon-deep); box-shadow: var(--shadow); }
+.kh-greet { font-size: 26px; }
+.kh-pet { position: relative; width: 100%; display: flex; justify-content: center; padding-top: 52px; }
+.kh-pet-btn { width: min(300px, 78vw); }
+.kh-bubble { top: 0; font-size: 17px; }
+.kh-level { width: min(460px, 100%); display: flex; flex-direction: column; gap: 6px; font-family: var(--font-title); font-size: 19px; }
+.kh-bar { position: relative; height: 30px; border-radius: 999px; background: rgba(255,255,255,.9); border: 3px solid #fff; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,.06); }
+.kh-bar span { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #FFD75E, #FFB347); border-radius: 999px; transition: width .6s ease; }
+.kh-bar em { position: relative; font-style: normal; font-size: 14px; line-height: 24px; font-family: var(--font-body); font-weight: 700; color: #6B4E16; }
+.kh-quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: min(560px, 100%); margin-top: 6px; }
+.kh-q { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; background: #fff; border-radius: 18px; text-decoration: none; color: var(--ink); font-family: var(--font-title); font-size: 16px; box-shadow: var(--shadow); min-height: 72px; justify-content: center; }
+.kh-q span { font-size: 28px; }
+.kh-q:active { transform: scale(.96); }
+.kh-acad { font-size: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; align-items: center; }
+
+/* 오늘의 미션 */
+.mission-card { background: linear-gradient(180deg, #FFF1C9 0, #FFFFFF 140px); border: 3px solid #FFE08A; }
+.kh-count { font-family: var(--font-title); font-size: 24px; background: #fff; border-radius: 999px; padding: 2px 14px; border: 2px solid #FFE08A; }
+.mission-track { display: flex; gap: 6px; flex-wrap: wrap; }
+.mt-dot { width: 34px; height: 34px; border-radius: 50%; background: #fff; border: 3px dashed #F2D06B; display: grid; place-items: center; font-size: 18px; }
+.mt-dot.on { border-style: solid; background: #FFF3C4; animation: pop .35s ease; }
+.mission-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.mission { position: relative; width: 100%; min-height: 150px; border-radius: 24px; border: 3px solid #F1E4D8; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 14px 10px; cursor: pointer; text-decoration: none; color: var(--ink); box-shadow: 0 6px 0 #F1E4D8, var(--shadow); transition: transform .12s ease, box-shadow .12s ease; }
+.mission:active { transform: translateY(4px); box-shadow: 0 2px 0 #F1E4D8, var(--shadow); }
+.ms-emoji { font-size: 46px; line-height: 1; }
+.ms-title { font-family: var(--font-title); font-size: 19px; text-align: center; line-height: 1.25; }
+.ms-sub { font-size: 13px; color: var(--ink-soft); text-align: center; }
+.ms-star { position: absolute; top: 8px; right: 10px; font-size: 13px; background: var(--lemon); border-radius: 999px; padding: 2px 8px; }
+.mission.done { background: #EFFAF4; border-color: #8FD3B2; box-shadow: 0 6px 0 #BFE8D3, var(--shadow); }
+.mission.done .ms-emoji { filter: saturate(.7); }
+.ms-stamp { position: absolute; bottom: 10px; right: 8px; transform: rotate(-12deg); font-family: var(--font-title); font-size: 13px; color: #D9534F; border: 2.5px solid #D9534F; border-radius: 50%; width: 58px; height: 58px; display: grid; place-items: center; text-align: center; line-height: 1.1; background: rgba(255,255,255,.75); animation: stamp .4s ease; }
+@keyframes stamp { 0% { transform: rotate(-12deg) scale(2); opacity: 0; } 100% { transform: rotate(-12deg) scale(1); opacity: 1; } }
+.fly-star { position: fixed; z-index: 60; font-size: 40px; pointer-events: none; filter: drop-shadow(0 2px 4px rgba(200,140,0,.4)); }
+
+/* 아래 탭 메뉴 */
+.kid-tabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 25; gap: 4px; background: rgba(255,255,255,.95); border-radius: 26px; padding: 6px; box-shadow: 0 8px 24px rgba(120,80,50,.2); border: 2px solid #fff; width: min(560px, calc(100vw - 20px)); }
+.kid-tabs a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0; text-decoration: none; color: var(--ink); font-family: var(--font-title); font-size: 14px; padding: 6px 2px; border-radius: 20px; min-height: 56px; justify-content: center; }
+.kid-tabs a span { font-size: 26px; line-height: 1.1; }
+.kid-tabs a:active, .kid-tabs a:hover { background: var(--peach); }
+body.morning-on .kid-tabs { display: none; }
+@media (max-width: 560px) {
+  .kh-quick { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mission-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mission { min-height: 136px; }
+  .kh-greet { font-size: 22px; }
+}
+.kh-proverb { width: min(560px, 100%); background: #FFFDF5; border: 3px solid #F2D06B; border-radius: 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow); position: relative; }
+.kh-proverb::before { content: ""; position: absolute; inset: 6px; border: 2px dashed #F7E2A0; border-radius: 16px; pointer-events: none; }
+.kh-pv-label { font-family: var(--font-title); font-size: 15px; color: #A07B1C; }
+.kh-pv-text { font-family: var(--font-title); font-size: 23px; line-height: 1.35; word-break: keep-all; }
+.kh-pv-mean { font-size: 15px; color: var(--ink-soft); word-break: keep-all; }
+.kh-pv-actions { display: flex; gap: 8px; justify-content: center; align-items: center; position: relative; }
+.kh-pv-yt { flex: 1; max-width: 320px; min-height: 52px; font-size: 18px; }
+
+.kh-body { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.kh-left, .kh-right { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+@media (min-width: 900px) {
+  .kh-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 24px; }
+  .kh-pet-btn { width: min(280px, 32vw); }
+  .kh-proverb, .kh-quick { width: 100%; }
+}
+.mission { padding-bottom: 22px; }
+.ms-stamp { top: 6px; left: 6px; bottom: auto; right: auto; width: 46px; height: 46px; font-size: 11px; border-width: 2px; }

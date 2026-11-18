@@ -1,6 +1,7 @@
 import { createStore, newId, hasFirebaseConfig } from "./store.js";
 import { seedData } from "./seed.js";
 import { listen, speak, speechSupported, ttsSupported, stopSpeaking } from "./speech.js";
+import { proverbOf } from "./proverbs.js";
 import { petSvg, petLine, stageOf, STAGES, PET_ITEMS, PET_COLORS } from "./pet.js";
 import { getWeather, cachedWeather, searchPlace, codeInfo, pmGrade, outfit, DEFAULT_PLACE } from "./weather.js";
 import { gcalConfigured, getToken, listCalendars, fetchEvents, preloadGoogle } from "./gcal.js";
@@ -183,6 +184,7 @@ function renderTop() {
   btn.textContent = isParent() ? "👨‍👩‍👦 부모 모드" : "🧒 아이 모드";
   btn.setAttribute("aria-label", isParent() ? "부모 모드 사용 중. 누르면 아이 모드로 바뀝니다" : "아이 모드 사용 중. 누르면 부모 모드로 바뀝니다");
   document.body.classList.toggle("parent", isParent());
+  document.body.classList.toggle("kid", !isParent());
 }
 
 // ---------------- 오늘 한눈에 ----------------
@@ -866,6 +868,7 @@ async function loadWeather(force = false) {
   renderWeather();
   renderPrep();
   renderHero();
+  renderKidHome();
 }
 function renderWeather() {
   const place = wxPlace();
@@ -1357,12 +1360,152 @@ function petPoke() {
   petSay = next;
   petMood = ["happy", "wow", "happy"][Math.floor(Math.random() * 3)];
   renderPet();
-  const svg = document.querySelector("#sec-pet .pet-btn");
-  if (svg) { svg.classList.remove("jump"); void svg.offsetWidth; svg.classList.add("jump"); }
+  renderKidHome();
+  petJump();
   if (ttsSupported()) speak(petSay.replace(/[^\p{L}\p{N}\s!?.,~]/gu, ""));
   clearTimeout(petPoke._t);
-  petPoke._t = setTimeout(() => { petSay = ""; petMood = "happy"; renderPet(); }, 6000);
+  petPoke._t = setTimeout(() => { petSay = ""; petMood = "happy"; renderPet(); renderKidHome(); }, 6000);
 }
+function petJump() {
+  document.querySelectorAll(".pet-btn").forEach((b) => { b.classList.remove("jump"); void b.offsetWidth; b.classList.add("jump"); });
+}
+function petReact(text) {
+  petSay = text;
+  petMood = "wow";
+  renderPet();
+  renderKidHome();
+  petJump();
+  clearTimeout(petPoke._t);
+  petPoke._t = setTimeout(() => { petSay = ""; petMood = "happy"; renderPet(); renderKidHome(); }, 4000);
+}
+
+// =============================================================
+//  아이 모드 전용 화면: 별콩이 홈 + 오늘의 미션
+// =============================================================
+function renderKidHome() {
+  const el = document.getElementById("sec-kidhome");
+  if (!el || isParent()) { if (el) el.innerHTML = ""; return; }
+  const { earned, balance, name, color, wearing, st } = petState();
+  const kid = data.settings?.childName || "우리 아들";
+  const now = new Date();
+  const today = wx?.days?.find((d) => d.date === dateKey());
+  const p = todayProgress();
+  const acad = academiesOn(startOfDay());
+  const pv = proverbOf();
+  el.innerHTML = `
+    <div class="kh-top">
+      <p class="kh-date">${now.getMonth() + 1}월 ${now.getDate()}일 ${DAYS[dayIdx(now)]}요일${wx ? ` · ${codeInfo(wx.now.code)[0]} ${Math.round(wx.now.temp)}°` : ""}</p>
+      <p class="kh-stars" aria-label="내 별 ${balance}개"><span aria-hidden="true">⭐</span> ${balance}</p>
+    </div>
+    <div class="kh-body">
+      <div class="kh-left">
+        <h2 id="kidhome-title" class="kh-greet">${esc(greetingText(kid))}</h2>
+        <div class="kh-pet">
+          ${petSay ? `<p class="pet-bubble kh-bubble" role="status">${esc(petSay)}</p>` : ""}
+          <button type="button" class="pet-btn kh-pet-btn" data-action="pet-poke" aria-label="${esc(name)} 쓰다듬기">${petSvg({ earned, color, wearing: st.index ? wearing : {}, mood: p.total && p.done === p.total ? "wow" : petMood, label: name })}</button>
+        </div>
+        <div class="kh-level">
+          <p><b>${esc(name)}</b> · Lv.${st.index + 1} ${esc(st.name)}</p>
+          ${st.next ? `<div class="kh-bar" role="img" aria-label="다음 단계까지 별 ${st.toNext}개"><span style="width:${st.pct}%"></span><em>${st.toNext}개 더 모으면 ${esc(st.next.name)}!</em></div>` : `<p>최고 단계! 👑</p>`}
+        </div>
+      </div>
+      <div class="kh-right">
+        <div class="kh-proverb">
+          <p class="kh-pv-label">📜 오늘의 속담</p>
+          <p class="kh-pv-text">"${esc(pv.text)}"</p>
+          <p class="kh-pv-mean">${esc(pv.meaning)}</p>
+          <div class="kh-pv-actions">
+            <a class="btn ytm kh-pv-yt" href="${ytUrl(`${pv.text} 속담 어린이`)}" target="_blank" rel="noopener">▶️ 유튜브로 보러 가기</a>
+            ${ttsSupported() ? `<button type="button" class="mini-btn" data-action="proverb-speak" aria-label="속담 읽어주기">🔊</button>` : ""}
+          </div>
+        </div>
+        <div class="kh-quick">
+          <a class="kh-q" href="#sec-mission"><span aria-hidden="true">🚀</span>미션 ${p.done}/${p.total}</a>
+          <a class="kh-q" href="#sec-pet"><span aria-hidden="true">👗</span>꾸미기</a>
+          <a class="kh-q" href="#sec-shop"><span aria-hidden="true">🎁</span>상점</a>
+          <a class="kh-q" href="#sec-mail"><span aria-hidden="true">💌</span>편지</a>
+        </div>
+        ${acad.length ? `<p class="kh-acad">오늘 학원 ${acad.map((a) => `<span class="tag">${esc(a.start)} ${esc(a.name)}</span>`).join(" ")}</p>` : ""}
+        ${today ? `<p class="kh-acad">👕 ${outfit(today.min, today.max)}${today.rain >= 50 ? " · ☂️ 우산 챙기기!" : ""}</p>` : ""}
+      </div>
+    </div>`;
+}
+
+function missionList() {
+  const k = dateKey();
+  const out = [];
+  const prepAll = prepItemsFor(startOfDay()).flatMap((g) => g.items);
+  if (prepAll.length) {
+    const checked = data.daily?.[k]?.prep?.items || {};
+    const n = prepAll.filter((it) => checked[it.key]).length;
+    out.push({ kind: "link", href: "#sec-prep", emoji: "🎒", title: "준비물 챙기기", sub: `${n} / ${prepAll.length}`, done: !!data.daily?.[k]?.prep?.done, stars: 1 });
+  }
+  list(data.routines).sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((r) => {
+    out.push({ kind: "btn", action: "toggle-routine", id: r.id, emoji: r.emoji || "✅", title: r.title, done: !!data.daily?.[k]?.routines?.[r.id], stars: Number(r.stars) || 1 });
+  });
+  list(data.worksheets).forEach((w) => {
+    out.push({ kind: "btn", action: "toggle-sheet", id: w.id, emoji: "📝", title: w.name, sub: `오늘 ${Number(w.daily) || 0}${w.unit || ""}`, done: !!data.daily?.[k]?.worksheets?.[w.id], stars: Number(w.stars) || 2 });
+  });
+  activePieces().forEach((x) => {
+    const cnt = pianoCount(x.id), tgt = pieceTarget(x);
+    out.push({ kind: "btn", action: "piano-plus", id: x.id, emoji: "🎹", title: x.title, sub: cnt >= tgt ? `${cnt}번 연습!` : `한 번 칠 때마다 눌러요 ${cnt}/${tgt}`, done: cnt >= tgt, stars: Number(x.stars) || 2, repeatable: true });
+  });
+  return out;
+}
+function renderMissions() {
+  const el = document.getElementById("sec-mission");
+  if (!el || isParent()) { if (el) el.innerHTML = ""; return; }
+  const ms = missionList();
+  const done = ms.filter((m) => m.done).length;
+  const all = ms.length && done === ms.length;
+  el.innerHTML = `
+    <div class="card-head">
+      <h2 id="mission-title">🚀 오늘의 미션</h2>
+      <span class="kh-count">${done} / ${ms.length}</span>
+    </div>
+    <div class="mission-track" role="img" aria-label="미션 ${ms.length}개 중 ${done}개 완료">
+      ${ms.map((m) => `<span class="mt-dot ${m.done ? "on" : ""}" aria-hidden="true">${m.done ? "⭐" : ""}</span>`).join("")}
+    </div>
+    <p class="hint">${all ? "🎉 미션 완료! 별콩이가 신나서 춤춰요!" : "미션을 끝내면 별이 별콩이한테 날아가요 ⭐"}</p>
+    <ul class="mission-grid">
+      ${ms.map((m) => {
+        const inner = `<span class="ms-emoji" aria-hidden="true">${esc(m.emoji)}</span>
+          <span class="ms-title">${esc(m.title)}</span>
+          ${m.sub ? `<span class="ms-sub">${esc(m.sub)}</span>` : ""}
+          <span class="ms-star">⭐${m.stars}</span>
+          ${m.done ? `<span class="ms-stamp" aria-hidden="true">참 잘했어요</span>` : ""}`;
+        return `<li>${m.kind === "link"
+          ? `<a class="mission ${m.done ? "done" : ""}" href="${m.href}">${inner}</a>`
+          : `<button type="button" class="mission ${m.done ? "done" : ""}" data-action="${m.action}" data-id="${esc(m.id)}" data-mission="1" ${m.repeatable ? 'data-repeat="1"' : ""} aria-pressed="${m.done}">${inner}</button>`}</li>`;
+      }).join("") || `<li class="empty">오늘 미션이 아직 없어요. 엄마·아빠한테 만들어 달라고 해 볼까?</li>`}
+    </ul>`;
+}
+function flyStar(fromEl) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const target = document.querySelector("#sec-kidhome .kh-pet-btn") || document.querySelector("#sec-pet .pet-btn");
+  if (!target || !fromEl) return;
+  const a = fromEl.getBoundingClientRect();
+  const b = target.getBoundingClientRect();
+  const star = document.createElement("span");
+  star.className = "fly-star";
+  star.textContent = "⭐";
+  star.style.left = `${a.left + a.width / 2 - 20}px`;
+  star.style.top = `${a.top + a.height / 2 - 20}px`;
+  document.body.appendChild(star);
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const anim = star.animate([
+    { transform: "translate(0,0) scale(1)", opacity: 1 },
+    { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 80}px) scale(1.6)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) scale(.6)`, opacity: 0.2 }
+  ], { duration: 900, easing: "cubic-bezier(.3,.7,.4,1)" });
+  anim.onfinish = () => {
+    star.remove();
+    const yum = ["냠냠! 별 고마워! ⭐", "우와 맛있다! 💖", "쑥쑥 자라는 기분이야!", "최고야! 하나 더 해 볼까?"];
+    petReact(yum[Math.floor(Math.random() * yum.length)]);
+  };
+}
+
 function petBuy(id) {
   const it = PET_ITEMS.find((x) => x.id === id);
   const { balance, name, st } = petState();
@@ -1486,6 +1629,8 @@ function renderAll() {
   applyLayout();
   renderTop();
   renderHero();
+  renderKidHome();
+  renderMissions();
   renderSchedule();
   renderWeather();
   renderPrep();
@@ -1946,6 +2091,7 @@ const actions = {
     speak(`사야 할 것 ${todo.length}개. ${todo.join(", ")}.`);
   },
   "mic-shop": (el) => micInto("shop", el),
+  "proverb-speak": () => { const pv = proverbOf(); speak(`오늘의 속담. ${pv.text}. ${pv.meaning}`); },
   "pet-poke": () => petPoke(),
   "pet-buy": (el) => petBuy(el.dataset.id),
   "pet-wear": (el) => petWear(el.dataset.id),
@@ -2026,6 +2172,10 @@ function setupEvents() {
     }
     const el = e.target.closest("[data-action]");
     if (!el || el.disabled) return;
+    if (el.dataset.mission && (el.getAttribute("aria-pressed") !== "true" || el.dataset.repeat)) {
+      const willFinish = el.dataset.action !== "piano-plus" || (() => { const x = data.piano?.[el.dataset.id]; return x && pianoCount(el.dataset.id) + 1 === pieceTarget(x); })();
+      if (willFinish) flyStar(el);
+    }
     const fn = actions[el.dataset.action];
     if (fn) fn(el);
   });

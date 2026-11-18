@@ -1,6 +1,6 @@
 // 서비스 워커: 앱 화면 파일을 저장해 두고, 인터넷이 느리거나 끊겨도 열리게 합니다.
 // 파일을 고친 뒤 배포할 때는 아래 VERSION 숫자를 올려 주세요.
-const VERSION = "v23";
+const VERSION = "v24";
 const CACHE = `family-dashboard-${VERSION}`;
 const SHELL = [
   "./",
@@ -14,6 +14,7 @@ const SHELL = [
   "./js/gcal.js",
   "./js/weather.js",
   "./js/pet.js",
+  "./js/proverbs.js",
   "./js/google-config.js",
   "./manifest.webmanifest",
   "./icons/icon.svg",
