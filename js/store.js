@@ -6,8 +6,10 @@
 // =============================================================
 import { firebaseConfig } from "./firebase-config.js";
 
-const FB_VERSION = "10.12.2";
-const FB_BASE = `https://www.gstatic.com/firebasejs/${FB_VERSION}`;
+export const FB_VERSION = "12.18.0";
+export const FB_BASE = `https://www.gstatic.com/firebasejs/${FB_VERSION}`;
+let firebaseAppInstance = null;
+export const getFirebaseApp = () => firebaseAppInstance;
 
 export function hasFirebaseConfig() {
   return Boolean(firebaseConfig && firebaseConfig.apiKey && firebaseConfig.databaseURL);
@@ -111,6 +113,7 @@ class FirebaseStore {
     ]);
     this.db = db;
     const app = initializeApp(firebaseConfig);
+    firebaseAppInstance = app;
     const a = auth.getAuth(app);
     await auth.signInAnonymously(a);
     this.database = db.getDatabase(app);

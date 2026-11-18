@@ -2,6 +2,7 @@ import { createStore, newId, hasFirebaseConfig } from "./store.js";
 import { seedData } from "./seed.js";
 import { listen, speak, speechSupported, ttsSupported, stopSpeaking } from "./speech.js";
 import { proverbOf } from "./proverbs.js";
+import { aiConfigured, askAssistant } from "./assistant.js";
 import { petSvg, petLine, stageOf, STAGES, PET_ITEMS, PET_COLORS } from "./pet.js";
 import { getWeather, cachedWeather, searchPlace, codeInfo, pmGrade, outfit, DEFAULT_PLACE } from "./weather.js";
 import { gcalConfigured, getToken, listCalendars, fetchEvents, preloadGoogle } from "./gcal.js";
@@ -1623,6 +1624,200 @@ function pieceForm(x = {}) {
 }
 
 // =============================================================
+//  음성 AI 비서 (Gemini)
+// =============================================================
+let aiHistory = [];
+let aiBusy = false;
+let aiLog = [];
+function aiContext() {
+  const kidMode = !isParent();
+  const now = new Date();
+  const k = dateKey(), k2 = dateKey(addDays(startOfDay(), 1));
+  const prepOf = (d) => {
+    const kk = dateKey(d);
+    const ch = data.daily?.[kk]?.prep?.items || {};
+    return prepItemsFor(d).flatMap((g) => g.items).map((it) => `${it.title}${ch[it.key] ? "(챙김)" : ""}`);
+  };
+  const acad = (d) => academiesOn(d).map((a) => `${a.start}-${a.end} ${a.name}${a.place ? `@${a.place}` : ""}${!kidMode && a.fee ? ` (월 ${a.fee}원)` : ""}`);
+  const today = wx?.days?.find((d) => d.date === k);
+  const tmr = wx?.days?.find((d) => d.date === k2);
+  const wxs = (d) => d ? `${codeInfo(d.code)[1]}, ${Math.round(d.min)}~${Math.round(d.max)}도, 비 ${d.rain ?? "?"}%` : "정보 없음";
+  const st = petState();
+  const ctx = {
+    지금: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${DAYS[dayIdx(now)]}요일 ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    말하는사람: `${ROLES[myRole()]?.label || "가족"} (${kidMode ? "아이 모드" : "부모 모드"})`,
+    아이이름: data.settings?.childName || "우리 아들",
+    날씨: { 지역: wxPlace().name, 지금: wx ? `${codeInfo(wx.now.code)[1]} ${Math.round(wx.now.temp)}도` : "정보 없음", 오늘: wxs(today), 내일: wxs(tmr), 미세먼지: wx ? `${pmGrade("pm10", wx.pm10)?.label || "?"}, 초미세 ${pmGrade("pm25", wx.pm25)?.label || "?"}` : "?", 옷차림: today ? outfit(today.min, today.max) : "" },
+    오늘미션: missionList().map((m) => `${m.title}${m.done ? "(완료)" : ""}`),
+    준비물_오늘: prepOf(startOfDay()),
+    준비물_내일: prepOf(addDays(startOfDay(), 1)),
+    학원_오늘: acad(startOfDay()),
+    학원_내일: acad(addDays(startOfDay(), 1)),
+    다가오는행사: [...upcomingEvents(), ...monthCalendarEvents()].sort((a, b) => a.diff - b.diff).slice(0, 6).map((e) => `${e.title} D-${e.diff} (${dateKey(e.date)}${e.time ? ` ${e.time}` : ""})`),
+    저녁: { 오늘: data.meals?.[k] || "미정", 어제: data.meals?.[dateKey(addDays(startOfDay(), -1))] || "기록 없음" },
+    사야할것: list(data.shopping).filter((x) => !x.done).map((x) => `${x.title}${x.qty ? ` ${x.qty}` : ""}`),
+    주말계획: list(data.weekend?.[weekendKey()]).map((p) => `${p.when || ""} ${p.title}${p.done ? "(완료)" : ""}`),
+    최근메모: list(data.mailbox).sort((a, b) => b.ts - a.ts).slice(0, 3).map((m) => `${ROLES[m.from]?.label || ""}: ${m.text}`),
+    엄마상태: statusOf(data.status?.mom?.state).label,
+    아빠상태: statusOf(data.status?.dad?.state).label,
+    별: { 쓸수있는별: st.balance, 모은별: st.earned },
+    캐릭터: `${st.name} Lv.${st.st.index + 1} ${st.st.name}${st.st.next ? `, 다음 단계까지 별 ${st.st.toNext}개` : ""}`,
+    오늘의속담: proverbOf().text
+  };
+  if (!kidMode) {
+    const ym = dateKey().slice(0, 7);
+    ctx.이번달학원비합계 = list(data.academies).filter((a) => a.repeat !== false || String(a.date || "").startsWith(ym)).reduce((t, a) => t + (Number(a.fee) || 0), 0);
+  }
+  return ctx;
+}
+function aiSystem() {
+  const kidMode = !isParent();
+  const kid = data.settings?.childName || "우리 아들";
+  const pet = petState().name;
+  const common = `아래 '대시보드 정보'만 사실로 믿고, 없는 내용은 지어내지 마. 대답은 소리로 읽히니까 이모지, 기호, 목록, 마크다운 없이 짧은 말로만 해. 사용자가 무언가를 추가·기록·완료해 달라고 하면 꼭 알맞은 도구를 호출하고, 끝난 뒤 무엇을 했는지 한 문장으로 알려 줘. 날짜는 '지금' 기준으로 YYYY-MM-DD로 계산해.\n\n대시보드 정보:\n${JSON.stringify(aiContext())}`;
+  if (kidMode) {
+    return `너는 '${pet}'라는 이름의 귀여운 캐릭터이고, 초등학교 2학년 ${kid}의 친구야. 다정하고 친근한 반말로 1~3문장만 말해. 쉬운 낱말만 써. 할 일을 하면 크게 칭찬해 주고, 다음 할 일을 하나 살짝 권해 줘. 돈, 학원비, 어른들 문제, 무섭거나 위험한 이야기, 개인정보, 다른 사이트나 앱 이야기는 하지 말고 '그건 엄마 아빠한테 물어보자'라고 해. 간단한 상식 질문은 아주 쉽고 짧게 대답해도 돼. ${common}`;
+  }
+  return `너는 이 가족 대시보드의 비서야. 엄마·아빠에게 존댓말로 1~3문장으로 간결하게 대답해. ${common}`;
+}
+function aiTools() {
+  const kidMode = !isParent();
+  const findTask = (title) => {
+    const t = String(title || "").replace(/\s/g, "");
+    const ms = missionList();
+    return ms.find((m) => m.title.replace(/\s/g, "").includes(t) || t.includes(m.title.replace(/\s/g, "")));
+  };
+  const tools = [
+    { name: "add_shopping", description: "사야 할 것(장보기 목록)에 물건을 추가해요.", params: { items: { type: "array", description: "물건 이름들, 수량은 이름 뒤에" }, place: { enum: ["마트", "문구", "약국", "온라인", "생활용품", "기타"], description: "어디서 살지", optional: true } },
+      run: ({ items, place }) => { const arr = (items || []).filter(Boolean); if (!arr.length) return { ok: false }; addShop(arr.join(","), { cat: place || "마트" }); return { ok: true, added: arr }; } },
+    { name: "send_memo", description: "가족 우체통에 메모를 남겨요. 누군가에게 전할 말이 있을 때 써요.", params: { text: { description: "메모 내용 (받는 사람 호칭 포함 가능)" } },
+      run: ({ text }) => { if (!text) return { ok: false }; const id = newId(); seenMail.add(id); store.set(`mailbox/${id}`, { from: myRole(), text: String(text).slice(0, 300), ts: Date.now() }); return { ok: true }; } },
+    { name: "set_dinner", description: "저녁 메뉴를 기록해요.", params: { menu: { description: "메뉴" }, day: { enum: ["오늘", "어제"], description: "언제 저녁인지", optional: true } },
+      run: ({ menu, day }) => { const d = day === "어제" ? addDays(startOfDay(), -1) : startOfDay(); store.set(`meals/${dateKey(d)}`, String(menu || "").slice(0, 60)); return { ok: true }; } },
+    { name: "complete_task", description: "오늘의 미션(루틴·학습지·피아노 1회 연습)을 완료로 표시해요. 아이가 '책 다 읽었어'처럼 말할 때 써요.", params: { title: { description: "할 일 이름 일부" } },
+      run: async ({ title }) => {
+        const m = findTask(title);
+        if (!m) return { ok: false, reason: "그런 미션이 없어요", missions: missionList().map((x) => x.title) };
+        if (m.kind === "link") return { ok: false, reason: "준비물은 하나씩 직접 눌러서 챙겨야 해요" };
+        if (m.done && m.action !== "piano-plus") return { ok: true, already: true, title: m.title };
+        if (m.action === "toggle-routine") await toggleDaily("routines", m.id);
+        else if (m.action === "toggle-sheet") await toggleDaily("worksheets", m.id);
+        else if (m.action === "piano-plus") await pianoStep(m.id, 1);
+        return { ok: true, title: m.title };
+      } },
+    { name: "add_prep_item", description: "특정 날짜에만 챙길 준비물을 추가해요.", params: { title: { description: "준비물" }, date: { description: "YYYY-MM-DD" } },
+      run: ({ title, date }) => { if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return { ok: false }; store.set(`prep/once/${newId()}`, { title: String(title).slice(0, 40), date, emoji: "📌" }); return { ok: true }; } },
+    { name: "add_weekend_plan", description: "이번 주말 계획을 추가해요.", params: { title: { description: "계획" }, when: { enum: ["토요일", "일요일", "주말"], description: "언제", optional: true } },
+      run: ({ title, when }) => { if (!title) return { ok: false }; store.set(`weekend/${weekendKey()}/${newId()}`, { title: String(title).slice(0, 40), when: when || "주말", done: false, ts: Date.now() }); return { ok: true }; } }
+  ];
+  if (!kidMode) {
+    tools.push(
+      { name: "set_parent_status", description: "엄마나 아빠의 지금 상태를 바꿔요.", params: { who: { enum: ["mom", "dad"], description: "엄마=mom, 아빠=dad" }, state: { enum: STATUS.map((x) => x.key), description: STATUS.map((x) => `${x.key}=${x.label}`).join(", ") } },
+        run: ({ who, state }) => { store.set(`status/${who}`, { state, ts: Date.now() }); return { ok: true }; } },
+      { name: "add_family_event", description: "가족 행사(D-Day)를 추가해요.", params: { title: { description: "행사 이름" }, date: { description: "YYYY-MM-DD" }, yearly: { enum: ["예", "아니오"], description: "매년 반복(생일 등)", optional: true } },
+        run: ({ title, date, yearly }) => { if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return { ok: false }; store.set(`events/${newId()}`, { title, date, yearly: yearly === "예", emoji: "🎉" }); return { ok: true }; } },
+      { name: "give_bonus_stars", description: "아이에게 칭찬 별을 줘요.", params: { amount: { type: "number", description: "1~10" }, reason: { description: "칭찬 이유", optional: true } },
+        run: ({ amount, reason }) => { const n = Math.max(1, Math.min(10, Math.round(Number(amount) || 1))); store.set(`starsLog/${newId()}`, { amount: n, reason: `💝 ${reason || "칭찬"}`, date: dateKey(), ts: Date.now() }); return { ok: true, amount: n }; } }
+    );
+  }
+  return tools;
+}
+function renderAI() {
+  const fab = document.getElementById("ai-fab");
+  const panel = document.getElementById("ai-panel");
+  if (!fab || !panel) return;
+  const kidMode = !isParent();
+  const name = petState().name;
+  fab.innerHTML = kidMode ? `<span aria-hidden="true">🎤</span> ${esc(name)}랑 말하기` : `<span aria-hidden="true">🎤</span> AI 비서`;
+  fab.setAttribute("aria-label", kidMode ? `${name}랑 말하기` : "AI 비서에게 말하기");
+}
+function aiPanelDraw(status = "") {
+  const panel = document.getElementById("ai-panel");
+  const kidMode = !isParent();
+  const name = petState().name;
+  panel.innerHTML = `
+    <div class="ai-sheet" role="dialog" aria-modal="false" aria-labelledby="ai-title">
+      <div class="ai-head">
+        <h2 id="ai-title">${kidMode ? `🎤 ${esc(name)}랑 말하기` : "🎤 AI 비서"}</h2>
+        <button type="button" class="mini-btn" data-action="ai-close" aria-label="닫기">✕</button>
+      </div>
+      <ul class="ai-log" aria-live="polite">
+        ${aiLog.length ? aiLog.map((m) => `<li class="ai-msg ${m.who}"><span>${esc(m.text)}</span></li>`).join("") : `<li class="ai-msg bot"><span>${kidMode ? `안녕! 나 ${esc(name)}야. 마이크를 누르고 말해 봐!` : "무엇을 도와드릴까요? 예: '우유랑 계란 장보기에 넣어 줘', '내일 준비물 뭐야?'"}</span></li>`}
+      </ul>
+      ${status ? `<p class="ai-status">${esc(status)}</p>` : ""}
+      <div class="ai-input">
+        ${speechSupported() ? `<button type="button" class="btn mic ai-mic" data-action="ai-listen" aria-label="말하기">🎤 말하기</button>` : ""}
+        <label for="ai-text" class="visually-hidden">글로 묻기</label>
+        <input id="ai-text" type="text" placeholder="${kidMode ? "글로 써도 돼!" : "글로 입력해도 돼요"}" enterkeyhint="send">
+        <button type="button" class="btn primary" data-action="ai-send">보내기</button>
+      </div>
+    </div>`;
+  const log = panel.querySelector(".ai-log");
+  if (log) log.scrollTop = log.scrollHeight;
+}
+function aiOpen(listenNow = true) {
+  const panel = document.getElementById("ai-panel");
+  panel.hidden = false;
+  document.body.classList.add("ai-on");
+  if (!aiConfigured() || !hasFirebaseConfig()) {
+    aiPanelDraw(isParent() ? "아직 AI 연결 설정이 안 됐어요. README의 '음성 AI 비서 연결'을 따라 reCAPTCHA 사이트 키를 넣어 주세요." : "아직 준비 중이에요. 엄마 아빠가 곧 연결해 줄 거야!");
+    return;
+  }
+  aiPanelDraw();
+  if (listenNow && speechSupported()) aiListen();
+}
+function aiClose() {
+  stopListening?.();
+  stopSpeaking();
+  const panel = document.getElementById("ai-panel");
+  panel.hidden = true;
+  panel.innerHTML = "";
+  document.body.classList.remove("ai-on");
+  aiHistory = [];
+  aiLog = [];
+}
+function aiListen() {
+  if (aiBusy) return;
+  stopSpeaking();
+  const btn = document.querySelector(".ai-mic");
+  if (stopListening) { stopListening(); return; }
+  if (btn) { btn.classList.add("listening"); btn.textContent = "👂 듣는 중…"; }
+  let finalText = "";
+  stopListening = listen({
+    onResult: (text, final) => { const el = $("#ai-text"); if (el) el.value = text; if (final) finalText = text; },
+    onEnd: (err) => {
+      stopListening = null;
+      const t = finalText || $("#ai-text")?.value || "";
+      if (err && !t) { aiPanelDraw(err === "not-allowed" ? "마이크 권한을 허용해 주세요" : "잘 못 들었어요. 다시 눌러 볼까요?"); return; }
+      if (t.trim()) aiSend(t.trim()); else aiPanelDraw();
+    }
+  });
+}
+async function aiSend(text) {
+  if (!text || aiBusy) return;
+  if (!aiConfigured() || !hasFirebaseConfig()) { aiOpen(false); return; }
+  aiBusy = true;
+  aiLog.push({ who: "me", text });
+  aiPanelDraw(isParent() ? "생각하는 중…" : `${petState().name}가 생각하는 중…`);
+  try {
+    const { reply, actions: done, history } = await askAssistant({ text, system: aiSystem(), tools: aiTools(), history: aiHistory });
+    aiHistory = history.slice(-12);
+    const msg = reply || (done.length ? "알겠어요, 해 뒀어요!" : "음, 다시 말해 줄래요?");
+    aiLog.push({ who: "bot", text: msg });
+    aiPanelDraw();
+    if (ttsSupported()) speak(msg);
+    if (!isParent()) petReact(msg.length > 40 ? `${msg.slice(0, 40)}…` : msg);
+  } catch (e) {
+    console.error(e);
+    const m = String(e?.message || e);
+    aiLog.push({ who: "bot", text: /app.?check|recaptcha|attestation/i.test(m) ? "보안 확인(App Check)에 실패했어요. reCAPTCHA 설정을 확인해 주세요." : /quota|429|rate/i.test(m) ? "오늘은 너무 많이 물어봐서 잠깐 쉬어야 해요. 조금 뒤에 다시 해 봐요." : "연결이 잘 안 됐어요. 잠시 뒤에 다시 해 볼까요?" });
+    aiPanelDraw();
+  } finally {
+    aiBusy = false;
+  }
+}
+
+// =============================================================
 //  전체 그리기
 // =============================================================
 function renderAll() {
@@ -1647,6 +1842,7 @@ function renderAll() {
   renderShopping();
   renderMusic();
   renderMorning();
+  renderAI();
 }
 
 // =============================================================
@@ -2091,6 +2287,10 @@ const actions = {
     speak(`사야 할 것 ${todo.length}개. ${todo.join(", ")}.`);
   },
   "mic-shop": (el) => micInto("shop", el),
+  "ai-open": () => aiOpen(true),
+  "ai-close": () => aiClose(),
+  "ai-listen": () => aiListen(),
+  "ai-send": () => { const el = $("#ai-text"); const t = (el?.value || "").trim(); if (el) el.value = ""; aiSend(t); },
   "proverb-speak": () => { const pv = proverbOf(); speak(`오늘의 속담. ${pv.text}. ${pv.meaning}`); },
   "pet-poke": () => petPoke(),
   "pet-buy": (el) => petBuy(el.dataset.id),
@@ -2201,6 +2401,8 @@ function setupEvents() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.dataset?.meal) e.target.blur();
     if (e.key === "Enter" && e.target.id === "shop-text" && !e.isComposing) { e.preventDefault(); addShop(e.target.value); }
+    if (e.key === "Enter" && e.target.id === "ai-text" && !e.isComposing) { e.preventDefault(); actions["ai-send"](); }
+    if (e.key === "Escape" && document.body.classList.contains("ai-on")) aiClose();
     if (e.key === "Enter" && e.target.id === "music-q") { e.preventDefault(); e.target.blur(); renderMusic(); }
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && e.target.id === "mail-text") actions["send-mail"]();
   });
