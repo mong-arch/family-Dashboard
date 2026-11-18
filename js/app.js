@@ -1169,7 +1169,7 @@ function morningShouldShow() {
   const w = morningWindow();
   if (!w) return false;
   const role = myRole();
-  if (!(role === "kid" || role === "tablet")) return false;
+  if (!(role === "kid" || role === "tablet" || !isParent())) return false;
   const k = dateKey();
   if (morningDismissed === k) return false;
   return true;
@@ -1267,7 +1267,7 @@ function morningForm() {
   openForm({
     title: "🌅 등원 준비 도우미",
     fields: [
-      { name: "enabled", label: "켜기 (거실 태블릿·아이 기기에서 시간이 되면 전체 화면으로 떠요)", type: "checkbox", value: !!c.enabled },
+      { name: "enabled", label: "켜기 (아이 모드인 기기와 거실 태블릿에서 시간이 되면 전체 화면으로 떠요)", type: "checkbox", value: !!c.enabled },
       { name: "start", label: "준비 시작", type: "time", value: c.start || "07:30", required: true, half: true },
       { name: "leave", label: "출발 시간", type: "time", value: c.leave || "08:20", required: true, half: true },
       { name: "days", label: "요일", type: "days", value: (c.days || [0, 1, 2, 3, 4]).map(Number) },
