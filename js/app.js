@@ -1,6 +1,7 @@
 import { createStore, newId, hasFirebaseConfig } from "./store.js";
 import { seedData } from "./seed.js";
 import { listen, speak, speechSupported, ttsSupported, stopSpeaking } from "./speech.js";
+import { petSvg, petLine, stageOf, STAGES, PET_ITEMS, PET_COLORS } from "./pet.js";
 import { getWeather, cachedWeather, searchPlace, codeInfo, pmGrade, outfit, DEFAULT_PLACE } from "./weather.js";
 import { gcalConfigured, getToken, listCalendars, fetchEvents, preloadGoogle } from "./gcal.js";
 
@@ -1288,6 +1289,112 @@ function morningForm() {
   $("#form-dialog-fields").appendChild(prev);
 }
 
+// ---------------- 별콩이 키우기 ----------------
+let petMood = "happy";
+let petSay = "";
+let petShopOpen = false;
+function petState() {
+  const { earned, balance } = starTotals();
+  const pet = data.pet || {};
+  return { earned, balance, pet, name: pet.name || "별콩이", color: pet.color || "peach", wearing: pet.wearing || {}, owned: pet.owned || {}, st: stageOf(earned) };
+}
+function renderPet() {
+  const { earned, balance, name, color, wearing, owned, st } = petState();
+  const lastSeen = device.get("petStage", null);
+  if (lastSeen !== null && st.index > lastSeen) {
+    petSay = "";
+    setTimeout(() => {
+      toast(st.index === 1 ? `🐣 알이 깨졌어요! ${name} 탄생!` : `✨ ${name}가 ${st.name}(으)로 자랐어요!`);
+      confetti(["⭐", "🌟", "🐣", "💖"]);
+      if (ttsSupported()) speak(st.index === 1 ? `와! 알이 깨졌어요! ${name}가 태어났어요!` : `${name}가 ${st.name}로 자랐어요!`);
+    }, 300);
+  }
+  if (lastSeen !== st.index) device.set("petStage", st.index);
+  const items = PET_ITEMS.map((it) => {
+    const has = !!owned[it.id];
+    const on = wearing[it.slot] === it.id;
+    const can = balance >= it.cost;
+    return `<li class="pet-item ${on ? "on" : ""}">
+      <span class="pet-item-emoji" aria-hidden="true">${it.emoji}</span>
+      <span class="pet-item-name">${esc(it.name)}</span>
+      ${has
+        ? `<button type="button" class="btn small ${on ? "primary" : ""}" data-action="pet-wear" data-id="${it.id}" aria-pressed="${on}" ${st.index === 0 ? "disabled" : ""}>${on ? "벗기" : "입히기"}</button>`
+        : `<button type="button" class="btn small" data-action="pet-buy" data-id="${it.id}" ${can ? "" : "disabled"}>⭐ ${it.cost}</button>`}
+    </li>`;
+  }).join("");
+  paint("sec-pet", `
+    <div class="card-head">
+      <h2 id="pet-title">🐣 ${esc(name)} 키우기</h2>
+      <button type="button" class="mini-btn" data-action="pet-settings" aria-label="이름·색깔 바꾸기">✏️</button>
+    </div>
+    <div class="pet-stage">
+      ${petSay ? `<p class="pet-bubble" role="status">${esc(petSay)}</p>` : ""}
+      <button type="button" class="pet-btn" data-action="pet-poke" aria-label="${esc(name)} 쓰다듬기">${petSvg({ earned, color, wearing: st.index ? wearing : {}, mood: petMood, label: name })}</button>
+    </div>
+    <div class="pet-info">
+      <p class="pet-level">Lv.${st.index + 1} · <b>${esc(st.name)}</b></p>
+      <p class="hint">${esc(st.desc)}</p>
+      ${st.next ? `<div class="bar" role="img" aria-label="다음 단계까지 ${st.toNext}개"><span style="width:${st.pct}%"></span></div>
+        <p class="hint">별 <b>${st.toNext}개</b> 더 모으면 <b>${esc(st.next.name)}</b>!</p>` : `<p class="hint">최고 단계에 올랐어요! 👑</p>`}
+      <p class="hint">지금까지 먹은 별 ⭐ ${earned} · 쓸 수 있는 별 ⭐ ${balance}</p>
+    </div>
+    <details class="passed" ${petShopOpen ? "open" : ""} data-pet-shop>
+      <summary>🎁 ${esc(name)} 꾸미기 상점</summary>
+      ${st.index === 0 ? `<p class="hint">알이 깨지면 꾸밀 수 있어요. 미리 사 둘 수는 있어요!</p>` : ""}
+      <ul class="pet-items">${items}</ul>
+      <p class="hint">아이템을 사면 쓸 수 있는 별이 줄어들지만, ${esc(name)}의 키(먹은 별)는 줄지 않아요.</p>
+    </details>`);
+}
+function petPoke() {
+  const { name, st } = petState();
+  const k = dateKey();
+  const prepAll = prepItemsFor(startOfDay()).flatMap((g) => g.items);
+  const checked = data.daily?.[k]?.prep?.items || {};
+  const earnedToday = list(data.starsLog).filter((l) => l.date === k && Number(l.amount) > 0).reduce((a, l) => a + Number(l.amount), 0);
+  const lines = petLine({ name, stage: st.index, p: todayProgress(), prepLeft: prepAll.filter((it) => !checked[it.key]).length, earnedToday });
+  let next = lines[Math.floor(Math.random() * lines.length)];
+  if (next === petSay && lines.length > 1) next = lines[(lines.indexOf(next) + 1) % lines.length];
+  petSay = next;
+  petMood = ["happy", "wow", "happy"][Math.floor(Math.random() * 3)];
+  renderPet();
+  const svg = document.querySelector("#sec-pet .pet-btn");
+  if (svg) { svg.classList.remove("jump"); void svg.offsetWidth; svg.classList.add("jump"); }
+  if (ttsSupported()) speak(petSay.replace(/[^\p{L}\p{N}\s!?.,~]/gu, ""));
+  clearTimeout(petPoke._t);
+  petPoke._t = setTimeout(() => { petSay = ""; petMood = "happy"; renderPet(); }, 6000);
+}
+function petBuy(id) {
+  const it = PET_ITEMS.find((x) => x.id === id);
+  const { balance, name, st } = petState();
+  if (!it) return;
+  if (balance < it.cost) { toast("별이 모자라요"); return; }
+  const patch = {
+    [`pet/owned/${id}`]: true,
+    [`starsLog/${newId()}`]: { amount: -it.cost, reason: `${it.emoji} ${name} ${it.name}`, date: dateKey(), ts: Date.now() }
+  };
+  if (st.index > 0) patch[`pet/wearing/${it.slot}`] = id;
+  store.update("", patch);
+  toast(`${it.emoji} ${it.name}을(를) 샀어요!`);
+  confetti([it.emoji, "✨", "⭐"]);
+}
+function petWear(id) {
+  const it = PET_ITEMS.find((x) => x.id === id);
+  if (!it) return;
+  const cur = data.pet?.wearing?.[it.slot];
+  store.set(`pet/wearing/${it.slot}`, cur === id ? null : id);
+}
+function petSettingsForm() {
+  const { name, color } = petState();
+  openForm({
+    title: "🐣 이름·색깔 바꾸기",
+    fields: [
+      { name: "name", label: "이름", type: "text", value: name, required: true, placeholder: "예: 별콩이, 콩콩이" },
+      { name: "color", label: "색깔", type: "select", value: color, options: PET_COLORS.map((c) => ({ value: c.id, label: c.label })) }
+    ],
+    onSubmit: (v) => { store.update("pet", { name: v.name.slice(0, 12), color: v.color }); toast("바꿨어요!"); }
+  });
+}
+
 // ---------------- 피아노 연습곡 ----------------
 const activePieces = () => list(data.piano).filter((x) => x.status !== "passed").sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
 const pieceTarget = (x) => Math.max(1, Number(x.target) || 5);
@@ -1385,6 +1492,7 @@ function renderAll() {
   renderStudy();
   renderPiano();
   renderStars();
+  renderPet();
   renderShop();
   renderDday();
   renderMeal();
@@ -1593,6 +1701,7 @@ const CARDS = [
   { id: "sec-prep", label: "🎒 챙겨야 할 것" },
   { id: "sec-study", label: "📚 오늘 공부할 것" },
   { id: "sec-piano", label: "🎹 피아노 연습곡" },
+  { id: "sec-pet", label: "🐣 별콩이 키우기" },
   { id: "sec-stars", label: "🌟 별 스티커판" },
   { id: "sec-shop", label: "🎁 보상 상점" },
   { id: "sec-dday", label: "🎂 가족 행사 & 이번 달 일정" },
@@ -1837,6 +1946,10 @@ const actions = {
     speak(`사야 할 것 ${todo.length}개. ${todo.join(", ")}.`);
   },
   "mic-shop": (el) => micInto("shop", el),
+  "pet-poke": () => petPoke(),
+  "pet-buy": (el) => petBuy(el.dataset.id),
+  "pet-wear": (el) => petWear(el.dataset.id),
+  "pet-settings": () => petSettingsForm(),
   "morning-step": (el) => morningStep(el.dataset.id),
   "morning-parent-close": () => askPin("오늘은 등원 도우미를 닫을게요.", () => { morningDismissed = dateKey(); renderMorning(); toast("오늘은 등원 도우미를 닫았어요"); }),
   "morning-close": () => { morningPreview = false; morningDismissed = dateKey(); renderMorning(); },
@@ -1924,6 +2037,9 @@ function setupEvents() {
       updateMusicLinks();
     }
   });
+  document.addEventListener("toggle", (e) => {
+    if (e.target?.matches?.("[data-pet-shop]")) petShopOpen = e.target.open;
+  }, true);
   document.addEventListener("change", (e) => {
     const k = e.target.dataset?.meal;
     if (k) {

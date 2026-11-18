@@ -468,3 +468,30 @@ body.morning-on { overflow: hidden; }
 .mo-done-emoji { font-size: 60px; }
 .mo-done-text { font-family: var(--font-title); font-size: 30px; }
 @media (max-width: 560px) { .mo-head h2 { font-size: 24px; } .mo-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mo-step { min-height: 100px; } .mo-title { font-size: 17px; } }
+
+/* ---------- 별콩이 ---------- */
+.pet-stage { position: relative; display: flex; justify-content: center; padding-top: 8px; }
+.pet-btn { background: radial-gradient(circle at 50% 60%, #FFFDF3 0, rgba(255,253,243,0) 70%); border: none; padding: 0; cursor: pointer; width: min(260px, 80%); border-radius: 50%; }
+.pet-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.pet-bob { animation: petBob 2.6s ease-in-out infinite; transform-box: fill-box; }
+.pet-wobble { animation: petWobble 2.2s ease-in-out infinite; transform-origin: 100px 180px; }
+.pet-wing { animation: petFlap 1.4s ease-in-out infinite; transform-origin: 100px 115px; }
+.pet-float { animation: petFloat 3s ease-in-out infinite; }
+.pet-sparkle { animation: petTwinkle 1.6s ease-in-out infinite; }
+.pet-btn.jump .pet-svg { animation: petJump .6s ease; }
+.pet-bubble { position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: #fff; border: 2px solid var(--lemon-deep); border-radius: 16px; padding: 8px 12px; font-size: 15px; max-width: 90%; text-align: center; z-index: 1; box-shadow: var(--shadow); animation: pop .3s ease; }
+.pet-bubble::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 12px; height: 12px; background: #fff; border-right: 2px solid var(--lemon-deep); border-bottom: 2px solid var(--lemon-deep); transform: translateX(-50%) rotate(45deg); }
+.pet-info { display: flex; flex-direction: column; gap: 4px; text-align: center; }
+.pet-level { font-family: var(--font-title); font-size: 20px; }
+.pet-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin: 8px 0; }
+.pet-item { background: #fff; border: 2px solid var(--line); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.pet-item.on { border-color: var(--coral); background: #FFF6F1; }
+.pet-item-emoji { font-size: 28px; }
+.pet-item-name { font-size: 14px; }
+.pet-item .btn { width: 100%; }
+@keyframes petBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes petWobble { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+@keyframes petFlap { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(.88); } }
+@keyframes petFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes petTwinkle { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+@keyframes petJump { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-18px) scale(1.05, .95); } 60% { transform: translateY(0) scale(.95, 1.05); } 100% { transform: translateY(0) scale(1); } }
