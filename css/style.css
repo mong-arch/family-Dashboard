@@ -432,3 +432,39 @@ textarea { resize: vertical; }
 /* ---------- 사야 할 것 ---------- */
 .shop-qty { font-size: 13px; color: var(--ink-soft); }
 .shop-by { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+
+/* ---------- 등원 준비 도우미 ---------- */
+.morning-overlay { position: fixed; inset: 0; z-index: 30; background: linear-gradient(160deg, #FFF3E2 0%, #FFE6EE 50%, #E8F1FF 100%); overflow-y: auto; padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
+body.morning-on { overflow: hidden; }
+.mo-inner { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.mo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.mo-head-right { display: flex; gap: 8px; align-items: center; }
+.mo-clock { font-family: var(--font-title); font-size: 22px; color: var(--ink-soft); }
+.mo-head h2 { font-size: 30px; }
+.mo-time { background: #fff; border-radius: 20px; padding: 14px; box-shadow: var(--shadow); }
+.mo-bar { height: 26px; border-radius: 999px; background: #F3ECE6; overflow: hidden; }
+.mo-bar span { display: block; height: 100%; border-radius: 999px; transition: width 1s linear, background .5s; }
+.mo-green .mo-bar span { background: linear-gradient(90deg, #8FD3B2, #5FBF92); }
+.mo-yellow .mo-bar span { background: linear-gradient(90deg, #F7D774, #F2B84B); }
+.mo-red .mo-bar span { background: linear-gradient(90deg, #F5A0A0, #E8706F); }
+.mo-red .mo-left { color: #B33A3A; animation: pulse 1s infinite; border-radius: 10px; }
+.mo-left { font-family: var(--font-title); font-size: 28px; margin-top: 8px; }
+.mo-left small { font-family: var(--font-body); font-size: 15px; color: var(--ink-soft); }
+.mo-wx { background: rgba(255,255,255,.85); border-radius: 14px; padding: 10px 14px; font-size: 16px; }
+.mo-count { font-family: var(--font-title); font-size: 20px; }
+.mo-steps { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.mo-steps li { display: flex; flex-direction: column; gap: 6px; }
+.mo-step { width: 100%; min-height: 110px; border-radius: 22px; border: 3px solid #F1E4D8; background: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px; position: relative; transition: transform .12s ease; box-shadow: var(--shadow); }
+.mo-step:active { transform: scale(.97); }
+.mo-step.on { background: var(--mint); border-color: #5FBF92; }
+.mo-emoji { font-size: 44px; line-height: 1; }
+.mo-title { font-family: var(--font-title); font-size: 20px; text-align: center; }
+.mo-title small { display: block; font-family: var(--font-body); font-size: 13px; color: var(--ink-soft); }
+.mo-step.on .mo-title { text-decoration: line-through; color: var(--ink-soft); }
+.mo-check { position: absolute; top: 10px; right: 12px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; background: transparent; border: 2px solid #D8CBC0; }
+.mo-step.on .mo-check { background: #3E9E72; border-color: #3E9E72; animation: pop .3s ease; }
+.mo-prep { display: flex; flex-wrap: wrap; gap: 6px; }
+.mo-done { background: #fff; border-radius: 22px; padding: 18px; text-align: center; border: 3px solid #5FBF92; }
+.mo-done-emoji { font-size: 60px; }
+.mo-done-text { font-family: var(--font-title); font-size: 30px; }
+@media (max-width: 560px) { .mo-head h2 { font-size: 24px; } .mo-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mo-step { min-height: 100px; } .mo-title { font-size: 17px; } }

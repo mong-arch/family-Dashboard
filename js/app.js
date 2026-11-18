@@ -1140,6 +1140,154 @@ function shopForm(x = {}) {
   });
 }
 
+// ---------------- 등원 준비 도우미 ----------------
+const MORNING_DEFAULT_STEPS = "⏰ 일어나서 이불 정리\n🚽 화장실 다녀오기\n🪥 세수하고 양치하기\n🍚 아침 먹기\n👕 옷 갈아입기\n🧦 양말 신기\n🎒 가방·준비물 챙기기\n👟 신발 신고 현관으로";
+let morningPreview = false;
+let morningDismissed = "";
+let morningSpoken = {};
+function parseSteps(text) {
+  return String(text || "").split("\n").map((l) => l.trim()).filter(Boolean).map((l, i) => {
+    const m = l.match(/^(\S+)\s+(.+)$/);
+    const first = m ? m[1] : "";
+    const isEmoji = first && !/[0-9A-Za-z가-힣]/.test(first);
+    return { id: `s${i}`, emoji: isEmoji ? first : "✅", title: isEmoji ? m[2] : l };
+  });
+}
+function morningConf() { return data.morning || null; }
+function morningWindow(now = new Date()) {
+  const c = morningConf();
+  if (!c?.enabled) return null;
+  const days = (c.days || [0, 1, 2, 3, 4]).map(Number);
+  if (!days.includes(dayIdx(now))) return null;
+  const m = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const st = toMin(c.start), en = toMin(c.leave);
+  if (m < st || m > en + 10) return null;
+  return { st, en, m };
+}
+function morningShouldShow() {
+  if (morningPreview) return true;
+  const w = morningWindow();
+  if (!w) return false;
+  const role = myRole();
+  if (!(role === "kid" || role === "tablet")) return false;
+  const k = dateKey();
+  if (morningDismissed === k) return false;
+  return true;
+}
+function renderMorning() {
+  const box = document.getElementById("morning-overlay");
+  if (!box) return;
+  const show = morningShouldShow();
+  document.body.classList.toggle("morning-on", show);
+  ["main", ".topbar", ".footer"].forEach((sel) => { const el = $(sel); if (el) el.inert = show; });
+  if (!show) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  const c = morningConf() || { start: "07:30", leave: "08:20", steps: MORNING_DEFAULT_STEPS };
+  const k = dateKey();
+  const steps = parseSteps(c.steps || MORNING_DEFAULT_STEPS);
+  const doneMap = data.daily?.[k]?.morning?.steps || {};
+  const prepGroups = prepItemsFor(startOfDay());
+  const prepAll = prepGroups.flatMap((g) => g.items);
+  const prepChecked = data.daily?.[k]?.prep?.items || {};
+  const prepN = prepAll.filter((it) => prepChecked[it.key]).length;
+  const doneN = steps.filter((x) => doneMap[x.id]).length;
+  const allDone = steps.length > 0 && doneN === steps.length;
+  const now = new Date();
+  const m = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const st = toMin(c.start), en = toMin(c.leave);
+  const total = Math.max(1, en - st);
+  const left = Math.max(0, en - m);
+  const pct = Math.max(0, Math.min(100, (left / total) * 100));
+  const tone = left <= 5 ? "red" : left <= 15 ? "yellow" : "green";
+  const leftLabel = left <= 0 ? "출발 시간이에요!" : left < 1 ? "곧 출발!" : `출발까지 ${Math.ceil(left)}분`;
+  const today = wx?.days?.find((d) => d.date === k);
+  const kid = data.settings?.childName || "우리 아들";
+  // 음성 안내 (한 번씩)
+  const sp = morningSpoken[k] || (morningSpoken[k] = {});
+  if (!morningPreview && ttsSupported() && device.get("autoRead", myRole() === "tablet")) {
+    if (!sp.start) { sp.start = 1; speak(`${kid}, 등원 준비 시작! ${c.leave}까지 준비해요.`); }
+    else if (!allDone && left <= 5 && left > 0 && !sp.five) { sp.five = 1; speak("5분 남았어요! 조금만 서둘러요."); }
+    else if (!allDone && left <= 0 && !sp.zero) { sp.zero = 1; speak("출발 시간이에요!"); }
+  }
+  box.innerHTML = `
+    <div class="mo-inner" role="dialog" aria-modal="true" aria-labelledby="mo-title">
+      <div class="mo-head">
+        <div>
+          <p class="mo-clock">${pad(now.getHours())}:${pad(now.getMinutes())}</p>
+          <h2 id="mo-title">🌅 ${esc(kid)}, 등원 준비 시간!</h2>
+        </div>
+        <div class="mo-head-right">
+          ${morningPreview ? `<span class="tag">미리보기</span>` : ""}
+          ${isParent() || allDone || left <= 0 || morningPreview ? `<button type="button" class="btn small" data-action="morning-close">${allDone ? "대시보드로" : "닫기"}</button>` : `<button type="button" class="mini-btn" data-action="morning-parent-close" aria-label="엄마·아빠가 닫기">🔒</button>`}
+        </div>
+      </div>
+      <div class="mo-time mo-${tone}">
+        <div class="mo-bar" role="img" aria-label="${leftLabel}"><span style="width:${pct}%"></span></div>
+        <p class="mo-left">${leftLabel} <small>(${esc(c.leave)} 출발)</small></p>
+      </div>
+      ${today ? `<p class="mo-wx">${codeInfo(today.code)[0]} 오늘 ${Math.round(today.min)}°~${Math.round(today.max)}° · 👕 ${outfit(today.min, today.max)}${today.rain >= 50 ? " · ☂️ 우산!" : ""}</p>` : ""}
+      ${allDone ? `<div class="mo-done"><p class="mo-done-emoji" aria-hidden="true">🎉</p><p class="mo-done-text">준비 끝! 최고야!</p><p class="hint">⭐ 2개를 받았어요</p></div>` : ""}
+      <p class="mo-count">${doneN} / ${steps.length} 완료</p>
+      <ul class="mo-steps">
+        ${steps.map((x) => {
+          const on = !!doneMap[x.id];
+          const isBag = /가방|준비물/.test(x.title) && prepAll.length;
+          return `<li>
+            <button type="button" class="mo-step ${on ? "on" : ""}" data-action="morning-step" data-id="${x.id}" aria-pressed="${on}">
+              <span class="mo-emoji" aria-hidden="true">${esc(x.emoji)}</span>
+              <span class="mo-title">${esc(x.title)}${isBag ? `<small> 준비물 ${prepN}/${prepAll.length}</small>` : ""}</span>
+              <span class="mo-check" aria-hidden="true">${on ? "✓" : ""}</span>
+            </button>
+            ${isBag ? `<div class="mo-prep">${prepAll.map((it) => `<button type="button" class="chip ${prepChecked[it.key] ? "on" : ""}" data-action="prep-toggle" data-key="${esc(it.key)}" data-day="${k}" aria-pressed="${!!prepChecked[it.key]}">${esc(it.emoji)} ${esc(it.title)}${prepChecked[it.key] ? " ✓" : ""}</button>`).join("")}</div>` : ""}
+          </li>`;
+        }).join("")}
+      </ul>
+    </div>`;
+}
+async function morningStep(id) {
+  const k = dateKey();
+  const on = !!data.daily?.[k]?.morning?.steps?.[id];
+  const c = morningConf() || {};
+  const steps = parseSteps(c.steps || MORNING_DEFAULT_STEPS);
+  const doneMap = { ...(data.daily?.[k]?.morning?.steps || {}) };
+  if (on) delete doneMap[id]; else doneMap[id] = true;
+  const willAll = steps.every((x) => doneMap[x.id]);
+  const patch = { [`daily/${k}/morning/steps/${id}`]: on ? null : true };
+  if (!morningPreview) patch[`starsLog/${k}_morning`] = willAll ? { amount: 2, reason: "🌅 등원 준비 끝", date: k, ts: Date.now() } : null;
+  await store.update("", patch);
+  if (!on && willAll) {
+    confetti(["🎉", "🌈", "⭐", "🎒"]);
+    if (ttsSupported()) speak("준비 끝! 정말 잘했어요!");
+  } else if (!on) {
+    confetti(["✨", "⭐"]);
+  }
+}
+function morningForm() {
+  const c = morningConf() || {};
+  openForm({
+    title: "🌅 등원 준비 도우미",
+    fields: [
+      { name: "enabled", label: "켜기 (거실 태블릿·아이 기기에서 시간이 되면 전체 화면으로 떠요)", type: "checkbox", value: !!c.enabled },
+      { name: "start", label: "준비 시작", type: "time", value: c.start || "07:30", required: true, half: true },
+      { name: "leave", label: "출발 시간", type: "time", value: c.leave || "08:20", required: true, half: true },
+      { name: "days", label: "요일", type: "days", value: (c.days || [0, 1, 2, 3, 4]).map(Number) },
+      { name: "steps", label: "할 일 (한 줄에 하나, 앞에 이모지)", type: "textarea", value: c.steps || MORNING_DEFAULT_STEPS }
+    ],
+    note: "'가방'이나 '준비물'이 들어간 줄에는 오늘 준비물 목록이 함께 나와요. 다 끝내면 ⭐ 2개. 아이 모드에서는 다 끝내거나 출발 시간이 지나야 닫을 수 있어요.",
+    onSubmit: (v) => {
+      if (toMin(v.leave) <= toMin(v.start)) { toast("출발 시간은 시작보다 늦어야 해요"); return false; }
+      store.set("morning", v);
+      toast("등원 도우미를 저장했어요");
+    }
+  });
+  const prev = document.createElement("button");
+  prev.type = "button";
+  prev.className = "btn small full";
+  prev.textContent = "👀 지금 미리보기";
+  prev.addEventListener("click", () => { $("#form-dialog").close(); morningPreview = true; renderMorning(); });
+  $("#form-dialog-fields").appendChild(prev);
+}
+
 // ---------------- 피아노 연습곡 ----------------
 const activePieces = () => list(data.piano).filter((x) => x.status !== "passed").sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
 const pieceTarget = (x) => Math.max(1, Number(x.target) || 5);
@@ -1245,6 +1393,7 @@ function renderAll() {
   renderMail();
   renderShopping();
   renderMusic();
+  renderMorning();
 }
 
 // =============================================================
@@ -1427,6 +1576,12 @@ function openSettings() {
     lay.textContent = "🧩 화면 카드 순서·숨기기";
     lay.addEventListener("click", () => { $("#form-dialog").close(); openLayoutEditor(); });
     $("#form-dialog-fields").prepend(lay);
+    const mor = document.createElement("button");
+    mor.type = "button";
+    mor.className = "btn small full";
+    mor.textContent = "🌅 등원 준비 도우미 설정";
+    mor.addEventListener("click", () => { $("#form-dialog").close(); morningForm(); });
+    $("#form-dialog-fields").prepend(mor);
   }
 }
 
@@ -1682,6 +1837,9 @@ const actions = {
     speak(`사야 할 것 ${todo.length}개. ${todo.join(", ")}.`);
   },
   "mic-shop": (el) => micInto("shop", el),
+  "morning-step": (el) => morningStep(el.dataset.id),
+  "morning-parent-close": () => askPin("오늘은 등원 도우미를 닫을게요.", () => { morningDismissed = dateKey(); renderMorning(); toast("오늘은 등원 도우미를 닫았어요"); }),
+  "morning-close": () => { morningPreview = false; morningDismissed = dateKey(); renderMorning(); },
   "prep-view": (el) => { prepView = el.dataset.view; renderPrep(); },
   "prep-toggle": (el) => {
     const k = el.dataset.day;
@@ -1850,6 +2008,7 @@ async function start() {
   setTimeout(() => loadWeather(false), 800);
   setInterval(() => loadWeather(false), 30 * 60 * 1000);
   setInterval(() => { renderTop(); renderHero(); renderSchedule(); renderDday(); renderStatus(); }, 60000);
+  setInterval(() => { if (morningShouldShow() || document.body.classList.contains("morning-on")) renderMorning(); }, 15000);
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("./sw.js").catch((err) => console.warn("서비스 워커 등록 실패", err));
